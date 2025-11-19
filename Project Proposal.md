@@ -81,3 +81,9 @@ We target low-level GPU kernel programs (e.g., GEMM, convolution, depthwise conv
 
 ### 8. Dataset Sources
 - Survey public low-level GPU kernel datasets (e.g., TenSet) and supplement with internally generated MetaSchedule metadata stored as Arrow tables. Release cleaned dataset (subject to licensing) for reproducibility.
+
+### 9. Repository Scaffold
+- Python package layout under `src/tvm_cost_model/` with modules for data, features, models, training, integration, and utilities, plus CLI scripts for dataset bootstrapping and training.
+- `pyproject.toml` defines dependencies (PyYAML, pytest, ruff) and ensures editable installs for active development.
+- `.venv` virtual environment checked into the repository root for reproducible local runs; instructions in `README.md` describe activation and installation workflows.
+- Placeholder tests (`tests/test_pipeline.py`) validate that the training pipeline skeleton wires up successfully, providing a base for future regression tests.

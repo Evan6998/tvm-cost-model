@@ -5,6 +5,7 @@ This file tracks the state of the project so that any collaborator or future ses
 ## Completed
 - **Proposal overhaul & scope clarification**: introduced success criteria, risks, and detailed methodology sections explaining graph-based modeling, invariance, and explainability requirements.
 - **Evaluation rubric definition**: locked in quantitative metrics (nRMSE, Kendall Tau, measurement reduction targets, attribution fidelity) that downstream work must satisfy.
+- **Repository scaffold & tooling bootstrap**: initialized the Python package structure (`src/tvm_cost_model`), CLI scripts, editable installation metadata, placeholder tests, and a `.venv` for reproducible development.
 
 ## In Progress
 - **Hardware & dataset provisioning**: finalizing access to two target NVIDIA GPUs (Ampere + Ada) and consolidating public traces (e.g., TenSet) into a unified schema; blocked only on confirming measurement quotas.
