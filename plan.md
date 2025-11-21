@@ -10,9 +10,9 @@ This file tracks the state of the project so that any collaborator or future ses
 ## In Progress
 - **Hardware & dataset provisioning**: finalizing access to two target NVIDIA GPUs (Ampere + Ada) and consolidating public traces (e.g., TenSet) into a unified schema; blocked only on confirming measurement quotas.
 - **Operator coverage selection**: iterating on the exact list of kernels and shape distributions with the TVM MetaSchedule benchmarking scripts to ensure ≥50k labeled schedules per GPU.
+- **Measurement tooling build-out**: synthetic sampler + PyArrow writer (`DatasetBuilder`, `scripts/bootstrap_dataset.py`) validate the collection/export flow; needs replacement with real MetaSchedule runners once GPU access is confirmed.
 
 ## Pending / Upcoming
-- **Measurement tooling build-out**: automate MetaSchedule sampling, logging of schedule configs, and Arrow/Parquet export (Implementation Plan Step 1).
 - **Graph extraction & canonicalization**: TIR-to-graph pipeline plus invariance augmentations (Step 2).
 - **Model prototyping**: implement the R-GAT backbone with regression and attribution heads, then benchmark against TVM’s XGBoost cost model (Step 3).
 - **Explainability validation**: visualization tooling and fidelity experiments for attribution signals (Step 4).
