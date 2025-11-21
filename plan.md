@@ -12,9 +12,11 @@ This file tracks the state of the project so that any collaborator or future ses
 - **Hardware & dataset provisioning**: finalizing access to two target NVIDIA GPUs (Ampere + Ada) and consolidating public traces (e.g., TenSet) into a unified schema; blocked only on confirming measurement quotas.
 - **Operator coverage selection**: iterating on the exact list of kernels and shape distributions with the TVM MetaSchedule benchmarking scripts to ensure ≥50k labeled schedules per GPU.
 - **Graph extraction & canonicalization**: TVM-free canonical graph builder with loop/buffer parsing and loop-order invariance implemented; next swap in real TIR parsing and richer node/edge semantics.
+- **Graph encoding for models**: added ProgramGraph encoder that stabilizes node/edge vocab IDs and aligns dense feature vectors to prep data for the upcoming R-GAT prototype.
+- **Ranking-only objective**: pivoted the model plan to focus on schedule ordering (Kendall Tau / NDCG) instead of absolute runtime regression; code skeleton now emits scores.
 
 ## Pending / Upcoming
-- **Model prototyping**: implement the R-GAT backbone with regression and attribution heads, then benchmark against TVM’s XGBoost cost model (Step 3).
+- **Model prototyping**: implement the R-GAT backbone with ranking + attribution heads, then benchmark against TVM’s XGBoost cost model (Step 3).
 - **Explainability validation**: visualization tooling and fidelity experiments for attribution signals (Step 4).
 - **MetaSchedule integration**: PyCostModel wrapper, fallback logic, and telemetry plumbing (Step 5).
 - **Full evaluation + release**: cross-operator/GPU experiments, ablations, and packaging of datasets/scripts (Step 6).

@@ -14,6 +14,12 @@ class GraphNode:
     name: str
     attrs: Dict[str, float | int]
 
+    def __repr__(self) -> str:
+        return f"GraphNode(name={self.name}, attrs={self.attrs})"
+    
+    def __str__(self) -> str:
+        return self.__repr__()
+
 
 @dataclass
 class ProgramGraph:
