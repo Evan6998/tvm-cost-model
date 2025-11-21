@@ -28,8 +28,8 @@ class GraphCostModel:
         attribution = {node.name: 1.0 / len(graph.nodes) for node in graph.nodes}
         return Prediction(score=0.0, attribution=attribution)
 
-    def update(self, graphs: Sequence[ProgramGraph], runtimes_ms: Sequence[float]) -> None:
+    def update(self, graphs: Sequence[ProgramGraph], scores: Sequence[float]) -> None:
         """Mock training routine to flip the trained flag."""
 
-        if graphs and runtimes_ms:
+        if graphs and scores:
             self._is_trained = True

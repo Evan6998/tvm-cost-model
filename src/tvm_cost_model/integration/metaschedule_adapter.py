@@ -14,13 +14,14 @@ class MetaScheduleAdapter:
         self.pipeline = TrainingPipeline()
 
     def predict(self, context: Any) -> float:
-        """Return a dummy runtime for a MetaSchedule trace."""
+        """Return a dummy score (higher is better) for a MetaSchedule trace."""
 
         tir_module = getattr(context, "tir", "")
         prediction = self.pipeline.predict(tir_module)
-        return prediction.runtime_ms
+        return prediction.score
 
     def update(self, context: Any, measured_cost: float) -> None:
-        """Placeholder update hook."""
+        """Placeholder update hook converting runtime to a ranking score."""
 
-        self.pipeline.fit([getattr(context, "tir", "")], [measured_cost])
+        score = -measured_cost  # lower runtime => higher score
+        self.pipeline.fit([getattr(context, "tir", "")], [score])

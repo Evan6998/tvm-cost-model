@@ -14,6 +14,10 @@ This file tracks the state of the project so that any collaborator or future ses
 - **Graph extraction & canonicalization**: TVM-free canonical graph builder with loop/buffer parsing and loop-order invariance implemented; next swap in real TIR parsing and richer node/edge semantics.
 - **Graph encoding for models**: added ProgramGraph encoder that stabilizes node/edge vocab IDs and aligns dense feature vectors to prep data for the upcoming R-GAT prototype.
 - **Ranking-only objective**: pivoted the model plan to focus on schedule ordering (Kendall Tau / NDCG) instead of absolute runtime regression; code skeleton now emits scores.
+- **Pair mining plan**: documented curriculum-style pair construction (easy-to-hard pairs) for ranking training to stabilize early epochs and improve discrimination on close schedules.
+
+## New
+- **Pair sampling utilities**: added helpers to generate easy/medium/hard ranking pairs from measurement records to feed the upcoming ranking losses.
 
 ## Pending / Upcoming
 - **Model prototyping**: implement the R-GAT backbone with ranking + attribution heads, then benchmark against TVM’s XGBoost cost model (Step 3).

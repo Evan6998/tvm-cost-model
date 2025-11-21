@@ -53,7 +53,9 @@ We target low-level GPU kernel programs (e.g., GEMM, convolution, depthwise conv
 
 **4.4 Training strategy**
 - Curriculum: begin with within-operator splits, then leave-one-operator-out, finally cross-GPU transfer.
-- Loss: ranking-only (pairwise hinge or listwise) to preserve ordering for MetaSchedule use; no regression objective.
+ - Loss: ranking-only (pairwise hinge or listwise) to preserve ordering for MetaSchedule use; no regression objective.
+ - Ranking pairs: start with easy pairs (large runtime gaps) for stable early training, then introduce hard/close pairs; optionally use curriculum sampling that increases pair difficulty as validation Kendall Tau plateaus.
+ - Pair construction utilities: implement offline pair miners that label easy/medium/hard pairs from measurement deltas so training can schedule difficulty over epochs.
 - Regularize via invariance constraints (contrastive loss between semantically equivalent schedules) and knowledge distillation from MetaSchedule’s XGBoost model for cold-start stability.
 
 **4.5 Integration into MetaSchedule**
