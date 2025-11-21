@@ -6,14 +6,14 @@ This file tracks the state of the project so that any collaborator or future ses
 - **Proposal overhaul & scope clarification**: introduced success criteria, risks, and detailed methodology sections explaining graph-based modeling, invariance, and explainability requirements.
 - **Evaluation rubric definition**: locked in quantitative metrics (nRMSE, Kendall Tau, measurement reduction targets, attribution fidelity) that downstream work must satisfy.
 - **Repository scaffold & tooling bootstrap**: initialized the Python package structure (`src/tvm_cost_model`), CLI scripts, editable installation metadata, placeholder tests, and a `.venv` for reproducible development.
+- **Synthetic measurement pipeline**: PyArrow-backed dataset builder with synthetic sampler/evaluator and CLI (`scripts/bootstrap_dataset.py`) validated export flow to Parquet + regression tests.
 
 ## In Progress
 - **Hardware & dataset provisioning**: finalizing access to two target NVIDIA GPUs (Ampere + Ada) and consolidating public traces (e.g., TenSet) into a unified schema; blocked only on confirming measurement quotas.
 - **Operator coverage selection**: iterating on the exact list of kernels and shape distributions with the TVM MetaSchedule benchmarking scripts to ensure ≥50k labeled schedules per GPU.
-- **Measurement tooling build-out**: synthetic sampler + PyArrow writer (`DatasetBuilder`, `scripts/bootstrap_dataset.py`) validate the collection/export flow; needs replacement with real MetaSchedule runners once GPU access is confirmed.
+- **Graph extraction & canonicalization**: TVM-free canonical graph builder with loop/buffer parsing and loop-order invariance implemented; next swap in real TIR parsing and richer node/edge semantics.
 
 ## Pending / Upcoming
-- **Graph extraction & canonicalization**: TIR-to-graph pipeline plus invariance augmentations (Step 2).
 - **Model prototyping**: implement the R-GAT backbone with regression and attribution heads, then benchmark against TVM’s XGBoost cost model (Step 3).
 - **Explainability validation**: visualization tooling and fidelity experiments for attribution signals (Step 4).
 - **MetaSchedule integration**: PyCostModel wrapper, fallback logic, and telemetry plumbing (Step 5).
