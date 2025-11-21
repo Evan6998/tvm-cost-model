@@ -37,6 +37,7 @@ We target low-level GPU kernel programs (e.g., GEMM, convolution, depthwise conv
 **4.1 Data generation & curation**
 - Use MetaSchedule to sample schedules for GEMM, Conv2D, Depthwise Conv, BMM, LayerNorm, and Softmax across diverse shapes.
 - Collect runtimes on two NVIDIA GPUs (one Ampere, one Ada) to enable cross-hardware experiments. Measurement metadata (schedule config, hardware counters, occupancy estimates) is stored in an Arrow/Parquet dataset for reproducibility.
+- Maintain a reproducible data-ingestion toolkit (PyArrow writers + CLI scripts) so collaborators can regenerate measurement artifacts locally before uploading to the shared dataset registry.
 - Augment with TenSet [4] traces when license-compatible to widen coverage.
 
 **4.2 Program representation**
@@ -47,6 +48,7 @@ We target low-level GPU kernel programs (e.g., GEMM, convolution, depthwise conv
 **4.3 Model architecture**
 - Base model: relational graph attention network (R-GAT) that aggregates loop, memory, and compute nodes.
 - Two-head design: (a) regression head for runtime prediction; (b) attribution head producing normalized importance scores over loop/memory nodes. Multi-task training enforces consistency between heads via gradient alignment.
+- Implementation stack: PyTorch + PyTorch Geometric for the GNN backbone, enabling rapid experimentation with relational attention layers.
 - Incorporate lightweight analytical priors by concatenating features such as arithmetic intensity and estimated occupancy.
 
 **4.4 Training strategy**

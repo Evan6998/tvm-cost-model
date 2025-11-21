@@ -11,6 +11,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml>=6.0",
+    "pyarrow==20.0",
+    "pyarrow-stubs==20.0.0.20251107",
 ]
 
 [project.optional-dependencies]
