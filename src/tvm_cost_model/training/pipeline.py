@@ -23,9 +23,9 @@ class TrainingPipeline:
         self.builder = GraphBuilder()
         self.model = GraphCostModel()
 
-    def fit(self, tir_modules: Iterable[str], runtimes_ms: Iterable[float]) -> None:
+    def fit(self, tir_modules: Iterable[str], scores: Iterable[float]) -> None:
         graphs = [self.builder.build(tir) for tir in tir_modules]
-        self.model.update(graphs, list(runtimes_ms))
+        self.model.update(graphs, list(scores))
 
     def predict(self, tir_module: str) -> Prediction:
         graph = self.builder.build(tir_module)

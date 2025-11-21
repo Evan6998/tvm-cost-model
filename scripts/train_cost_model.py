@@ -9,7 +9,7 @@ def main() -> None:
     pipeline = TrainingPipeline()
     pipeline.fit(["tir_module"], [0.0])
     prediction = pipeline.predict("tir_module")
-    print(f"Dummy runtime: {prediction.runtime_ms}ms")
+    print(f"Dummy score: {prediction.score}")
 
 
 if __name__ == "__main__":

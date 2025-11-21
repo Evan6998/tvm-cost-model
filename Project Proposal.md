@@ -14,7 +14,7 @@ We target low-level GPU kernel programs (e.g., GEMM, convolution, depthwise conv
 
 **Goals & success criteria**
 - Reduce TVM MetaSchedule measurement counts by ≥5× compared to the default XGBoost cost model while keeping final kernel latency within 5% of the baseline best-found kernel.
-- Achieve <10% normalized RMSE when predicting runtimes for kernels unseen during training (leave-one-operator-out split) and <15% when transferring across GPU generations.
+- Achieve strong ranking quality (Kendall Tau ≥0.7 on held-out schedules) for kernels unseen during training and ≥0.6 when transferring across GPU generations; absolute runtime prediction is out-of-scope.
 - Provide per-program factor attributions (e.g., bottleneck loops, memory tiles) with fidelity validated via counterfactual edits.
 
 ### 3. Related Work & Gaps
@@ -47,13 +47,13 @@ We target low-level GPU kernel programs (e.g., GEMM, convolution, depthwise conv
 
 **4.3 Model architecture**
 - Base model: relational graph attention network (R-GAT) that aggregates loop, memory, and compute nodes.
-- Two-head design: (a) regression head for runtime prediction; (b) attribution head producing normalized importance scores over loop/memory nodes. Multi-task training enforces consistency between heads via gradient alignment.
+- Two-head design: (a) ranking head producing a scalar score for ordering schedules; (b) attribution head producing normalized importance scores over loop/memory nodes. Multi-task training enforces consistency between heads via gradient alignment.
 - Implementation stack: PyTorch + PyTorch Geometric for the GNN backbone, enabling rapid experimentation with relational attention layers.
 - Incorporate lightweight analytical priors by concatenating features such as arithmetic intensity and estimated occupancy.
 
 **4.4 Training strategy**
 - Curriculum: begin with within-operator splits, then leave-one-operator-out, finally cross-GPU transfer.
-- Loss: nRMSE + ranking loss (pairwise hinge) to preserve ordering for MetaSchedule use.
+- Loss: ranking-only (pairwise hinge or listwise) to preserve ordering for MetaSchedule use; no regression objective.
 - Regularize via invariance constraints (contrastive loss between semantically equivalent schedules) and knowledge distillation from MetaSchedule’s XGBoost model for cold-start stability.
 
 **4.5 Integration into MetaSchedule**
@@ -61,10 +61,10 @@ We target low-level GPU kernel programs (e.g., GEMM, convolution, depthwise conv
 - Provide failure-safe fallback to XGBoost when models are uncalibrated and expose attribution output to MetaSchedule logs/visualizations for interpretability.
 
 ### 5. Evaluation Plan
-- **Predictive accuracy**: nRMSE and Kendall Tau on held-out schedules; ablations with/without invariance loss and attribution head.
+- **Predictive accuracy**: ranking metrics only (Kendall Tau, Normalized Discounted Cumulative Gain) on held-out schedules; ablations with/without invariance loss and attribution head.
 - **Search efficiency**: number of on-device measurements required to reach within 5% of oracle latency for each operator on both GPUs.
 - **Transfer tests**: train on Ampere, evaluate on Ada without fine-tuning; train on subset of operators, test on unseen ones.
-- **Explainability validation**: perturb top-attributed loops/tiles and verify predicted runtime shifts correlate with actual measurements (fidelity ≥0.6).
+- **Explainability validation**: perturb top-attributed loops/tiles and verify predicted ranking shifts correlate with actual measurements (fidelity ≥0.6).
 - **Overheads**: measure cost-model inference latency to ensure it adds <5% overhead to MetaSchedule search time.
 
 ### 6. Implementation Plan & Milestones

@@ -1,4 +1,4 @@
-"""Placeholder for the R-GAT based runtime predictor."""
+"""Placeholder for the R-GAT based ranking predictor."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from tvm_cost_model.features.graph_builder import ProgramGraph
 
 @dataclass
 class Prediction:
-    runtime_ms: float
+    score: float
     attribution: dict[str, float]
 
 
@@ -21,10 +21,12 @@ class GraphCostModel:
         self._is_trained = False
 
     def predict(self, graph: ProgramGraph) -> Prediction:
-        """Return dummy runtime and uniform attribution."""
+        """Return dummy score (higher is better) and uniform attribution."""
 
+        if not graph.nodes:
+            return Prediction(score=0.0, attribution={})
         attribution = {node.name: 1.0 / len(graph.nodes) for node in graph.nodes}
-        return Prediction(runtime_ms=0.0, attribution=attribution)
+        return Prediction(score=0.0, attribution=attribution)
 
     def update(self, graphs: Sequence[ProgramGraph], runtimes_ms: Sequence[float]) -> None:
         """Mock training routine to flip the trained flag."""
