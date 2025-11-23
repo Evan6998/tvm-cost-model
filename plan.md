@@ -18,6 +18,8 @@ This file tracks the state of the project so that any collaborator or future ses
 
 ## New
 - **Pair sampling utilities**: added helpers to generate easy/medium/hard ranking pairs from measurement records to feed the upcoming ranking losses.
+- **Torch baseline ranker**: introduced a Node-MLP ranker with per-node attribution and encoded-pair dataset builder to exercise the ranking pipeline before plugging in the full R-GAT.
+- **Encoded ranking pairs**: pipeline from MeasurementRecords through GraphBuilder/GraphEncoder to produce model-ready pairs for the ranking head.
 
 ## Pending / Upcoming
 - **Model prototyping**: implement the R-GAT backbone with ranking + attribution heads, then benchmark against TVM’s XGBoost cost model (Step 3).

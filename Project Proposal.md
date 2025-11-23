@@ -50,6 +50,7 @@ We target low-level GPU kernel programs (e.g., GEMM, convolution, depthwise conv
 - Two-head design: (a) ranking head producing a scalar score for ordering schedules; (b) attribution head producing normalized importance scores over loop/memory nodes. Multi-task training enforces consistency between heads via gradient alignment.
 - Implementation stack: PyTorch + PyTorch Geometric for the GNN backbone, enabling rapid experimentation with relational attention layers.
 - Incorporate lightweight analytical priors by concatenating features such as arithmetic intensity and estimated occupancy.
+- Interim baseline: start with a light Node-MLP ranker over encoded graphs to sanity check the ranking pipeline before swapping in the R-GAT.
 
 **4.4 Training strategy**
 - Curriculum: begin with within-operator splits, then leave-one-operator-out, finally cross-GPU transfer.
