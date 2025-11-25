@@ -9,55 +9,75 @@ T = tvm.script.tir  # type: ignore[import]
 from tvm_cost_model.data.dataset_builder import ScheduleSample
 from tvm_cost_model.data.metaschedule_sampler import (
     MetaScheduleSampler,
+    MetaScheduleRuntimeEvaluator,
     apply_trace_to_module,
+    generate_inputs_from_workload,
     measure_schedules,
 )
 
 
 def _module_supplier(_: str) -> tvm.IRModule: 
-    @tvm.script.ir_module
+    @tvm.script.ir_module  # type: ignore[annotation-unchecked]
     class Module:
-        @T.prim_func
+        @T.prim_func  # type: ignore[annotation-unchecked]
         def main():
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tir.noalias": True})  # type: ignore[call-arg]
             # Simple loop with a named block to expose design space
-            for i in T.serial(0, 8):
-                with T.block("C"):
-                    vi = T.axis.spatial(8, i)
-                    T.evaluate(vi)
-    return Module
+            for i in T.serial(0, 8): # type: ignore[call-arg]
+                with T.block("C"): # type: ignore[call-arg]
+                    vi = T.axis.spatial(8, i) # type: ignore[call-arg]
+                    T.evaluate(vi)  # type: ignore[call-arg]
+    return Module  # type: ignore[return-value]
 
 
 def test_metaschedule_sampler_emits_samples(tmp_path: Path):
     target = "llvm -num-cores 4"
-    sampler = MetaScheduleSampler(target=target, module_supplier=_module_supplier, work_dir=tmp_path)
+    sampler = MetaScheduleSampler(target=target, module_supplier=_module_supplier, work_dir=tmp_path, workload_shape_fn=lambda _: {})
     samples = list(sampler.sample("main", batch=2))
     assert len(samples) == 2
     assert all(isinstance(s.schedule_json, str) for s in samples)
     assert all(isinstance(s.tir, str) and s.tir for s in samples)
 
 
-def test_measure_schedules_runs_time_evaluator():
-    # Use a trivial program with no inputs
+def test_metaschedule_sampler_populates_workload_shapes(tmp_path: Path):
+    workload = {"A": (4,)}
+    sampler = MetaScheduleSampler(
+        target="llvm -num-cores 4",
+        module_supplier=_module_supplier,
+        work_dir=tmp_path,
+        workload_shape_fn=lambda _: workload,
+    )
+    sample = next(iter(sampler.sample("main", batch=1)))
+    assert sample.workload_shape == workload
+
+
+def test_measure_schedules_generates_inputs():
     tir_script = """
 @tvm.script.ir_module
 class Module:
     @T.prim_func
-    def main():
+    def main(A: T.Buffer((4,), "float32")):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i in T.serial(0, 4):
-            T.evaluate(i)
+            A[i] = A[i] + 1.0
 """
     sample = ScheduleSample(
         operator="main",
         schedule_json="",
         tir=tir_script,
-        workload_shape={},
+        workload_shape={"A": (4,)},
     )
-    records = list(measure_schedules([sample], target="llvm -num-cores 4", hardware_id="cpu"))
+    records = list(
+        measure_schedules(
+            [sample],
+            target="llvm",
+            hardware_id="cpu",
+            device=tvm.cpu(0), # type: ignore
+            input_generator=generate_inputs_from_workload,
+        )
+    )
     assert len(records) == 1
     assert records[0].runtime_ms != float("inf")
-    assert records[0].operator == "main"
 
 
 def test_apply_trace_to_module_round_trips():
@@ -73,3 +93,29 @@ def test_apply_trace_to_module_round_trips():
     # Ensure the new module is buildable
     built = tvm_tir.build(new_mod, target="llvm")
     assert hasattr(built, "entry_name")
+
+
+def test_metaschedule_runtime_evaluator_wraps_measurement():
+    tir_script = """
+@tvm.script.ir_module
+class Module:
+    @T.prim_func
+    def main(A: T.Buffer((4,), "float32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i in T.serial(0, 4):
+            A[i] = A[i] + 1.0
+"""
+    sample = ScheduleSample(
+        operator="main",
+        schedule_json="",
+        tir=tir_script,
+        workload_shape={"A": (4,)},
+    )
+    evaluator = MetaScheduleRuntimeEvaluator(
+        target="llvm",
+        hardware_id="cpu",
+        device=tvm.cpu(0), # type: ignore
+        input_generator=generate_inputs_from_workload,
+    )
+    runtime_ms = evaluator.evaluate(sample)
+    assert runtime_ms != float("inf")

@@ -39,7 +39,7 @@ We target low-level GPU kernel programs (e.g., GEMM, convolution, depthwise conv
 - Collect runtimes on two NVIDIA GPUs (one Ampere, one Ada) to enable cross-hardware experiments. Measurement metadata (schedule config, hardware counters, occupancy estimates) is stored in an Arrow/Parquet dataset for reproducibility.
 - Maintain a reproducible data-ingestion toolkit (PyArrow writers + CLI scripts) so collaborators can regenerate measurement artifacts locally before uploading to the shared dataset registry.
 - Augment with TenSet [4] traces when license-compatible to widen coverage.
-- Integrate MetaSchedule samplers to emit design-space schedules and measure them locally via `tvm.build` + `time_evaluator`, with hooks to swap in remote runners if needed.
+- Integrate MetaSchedule samplers to emit design-space schedules and measure them locally via `tvm.tir.build` + `time_evaluator`, synthesize NDArray inputs from workload metadata, and keep hooks to swap in remote runners when available. Provide a CLI path to bootstrap MetaSchedule-based Parquet artifacts (initially with a vector-add IRModule) alongside the synthetic pipeline.
 
 **4.2 Program representation**
 - Convert TIR to a heterogeneous graph capturing loop nests, memory buffers, thread bindings, and arithmetic ops.

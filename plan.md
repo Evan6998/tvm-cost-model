@@ -19,12 +19,13 @@ This file tracks the state of the project so that any collaborator or future ses
 ## New
 - **Pair sampling utilities**: added helpers to generate easy/medium/hard ranking pairs from measurement records to feed the upcoming ranking losses.
 - **Torch baseline ranker**: introduced a Node-MLP ranker with per-node attribution and encoded-pair dataset builder to exercise the ranking pipeline before plugging in the full R-GAT.
-- **TVM integration scaffold**: TVMGraphBuilder now uses Python `stmt_functor.post_order_visit` to parse real TIR; MetaSchedule sampler emits design-space schedules and measures locally via `tvm.build` + `time_evaluator`.
+- **TVM integration scaffold**: TVMGraphBuilder now uses Python `stmt_functor.post_order_visit` to parse real TIR; MetaSchedule sampler emits design-space schedules and measures locally via `tvm.tir.build` + `time_evaluator`.
 - **Encoded ranking pairs**: pipeline from MeasurementRecords through GraphBuilder/GraphEncoder to produce model-ready pairs for the ranking head.
+- **MetaSchedule measurement plumbing**: measurement now supports input synthesis from `workload_shape`, optional runner hooks, and a `MetaScheduleRuntimeEvaluator` that slots into `DatasetBuilder`.
+- **Dataset bootstrap CLI (MetaSchedule mode)**: `scripts/bootstrap_dataset.py` can now generate Parquet artifacts via MetaSchedule sampling/measurement (vector-add builtin IRModule) with target/device/number/repeat configuration.
 
 ## Immediate Next Steps
-- Wire MetaSchedule sampler + measurement into the dataset builder scripts to replace synthetic sampling.
-- Extend measurement to handle function inputs (generate NDArrays from workload shapes) and add optional remote runner support.
+- Expose remote-runner configuration (RPC/cluster) and richer workload metadata (dtypes, multiple inputs) so measurement can leave the local host.
 - Begin PyTorch/PyG R-GAT prototyping using encoded graphs and mined pairs; keep Node-MLP as a baseline.
 
 ## Pending / Upcoming
