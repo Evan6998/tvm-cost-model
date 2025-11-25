@@ -39,11 +39,13 @@ We target low-level GPU kernel programs (e.g., GEMM, convolution, depthwise conv
 - Collect runtimes on two NVIDIA GPUs (one Ampere, one Ada) to enable cross-hardware experiments. Measurement metadata (schedule config, hardware counters, occupancy estimates) is stored in an Arrow/Parquet dataset for reproducibility.
 - Maintain a reproducible data-ingestion toolkit (PyArrow writers + CLI scripts) so collaborators can regenerate measurement artifacts locally before uploading to the shared dataset registry.
 - Augment with TenSet [4] traces when license-compatible to widen coverage.
+- Integrate MetaSchedule samplers to emit design-space schedules and measure them locally via `tvm.build` + `time_evaluator`, with hooks to swap in remote runners if needed.
 
 **4.2 Program representation**
 - Convert TIR to a heterogeneous graph capturing loop nests, memory buffers, thread bindings, and arithmetic ops.
 - Apply canonicalization passes (loop normalization, storage flattening, access-index hashing) so semantically equivalent schedules map to similar graphs, improving invariance.
 - Encode hardware context (SM count, shared memory size, memory bandwidth) as node/edge attributes so the model can learn cross-GPU transfer.
+- Implement both TVM-free and TVM-backed graph builders: the former keeps the pipeline runnable without TVM; the latter uses TVM Script parsing + TIR visitors for real schedule graphs once TVM is present.
 
 **4.3 Model architecture**
 - Base model: relational graph attention network (R-GAT) that aggregates loop, memory, and compute nodes.
