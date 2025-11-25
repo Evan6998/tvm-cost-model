@@ -19,7 +19,7 @@ class ScheduleSample:
     operator: str
     schedule_json: str
     tir: str
-    workload_shape: Dict[str, int]
+    workload_shape: Dict[str, tuple[int, ...]]
 
 
 @dataclass
@@ -29,7 +29,7 @@ class MeasurementRecord:
     operator: str
     schedule_json: str
     tir: str
-    workload_shape: Dict[str, int]
+    workload_shape: Dict[str, tuple[int, ...]]
     runtime_ms: float
     hardware_id: str
 
@@ -121,9 +121,9 @@ class SyntheticScheduleSampler:
     def sample(self, operator: str, batch: int) -> Iterable[ScheduleSample]:
         for idx in range(batch):
             shape = {
-                "m": self._rng.randint(64, 4096),
-                "n": self._rng.randint(64, 4096),
-                "k": self._rng.randint(64, 4096),
+                "m": (self._rng.randint(64, 4096),),
+                "n": (self._rng.randint(64, 4096),),
+                "k": (self._rng.randint(64, 4096),),
             }
             schedule = {
                 "tile_m": self._rng.choice([16, 32, 64]),
@@ -146,7 +146,7 @@ class SyntheticRuntimeEvaluator:
         self._rng = random.Random(seed)
 
     def evaluate(self, sample: ScheduleSample, hardware_id: str) -> float:
-        scale = sum(sample.workload_shape.values()) / 1024.0
+        scale = sum(sum(dim) for dim in sample.workload_shape.values()) / 1024.0
         knob_penalty = json.loads(sample.schedule_json)["unroll_k"] * 0.1
         noise = self._rng.random() * 0.05
         hardware_factor = 0.8 if "ada" in hardware_id.lower() else 1.0
