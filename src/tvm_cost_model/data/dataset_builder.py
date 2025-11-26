@@ -68,12 +68,10 @@ class DatasetBuilder:
         sampler: ScheduleSampler,
         evaluator: RuntimeEvaluator,
         output_dir: Path,
-        default_hardware_id: str = "unknown",
     ) -> None:
         self._sampler = sampler
         self._evaluator = evaluator
         self._output_dir = output_dir
-        self._default_hardware_id = default_hardware_id
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
     def collect(
@@ -81,15 +79,14 @@ class DatasetBuilder:
         operator: str,
         batches: int,
         batch_size: int,
-        hardware_id: str | None = None,
+        hardware_id: str,
     ) -> List[MeasurementRecord]:
         """Collect measurement records for the requested operator."""
 
         measurements: List[MeasurementRecord] = []
-        hw_id = hardware_id or self._default_hardware_id
         for _ in range(batches):
             for sample in self._sampler.sample(operator, batch=batch_size):
-                runtime_ms = self._evaluator.evaluate(sample, hw_id)
+                runtime_ms = self._evaluator.evaluate(sample, hardware_id)
                 measurements.append(
                     MeasurementRecord(
                         operator=sample.operator,
@@ -97,7 +94,7 @@ class DatasetBuilder:
                         tir=sample.tir,
                         workload_shape=sample.workload_shape,
                         runtime_ms=runtime_ms,
-                        hardware_id=hw_id,
+                        hardware_id=hardware_id,
                     )
                 )
         return measurements
