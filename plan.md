@@ -25,6 +25,7 @@ This file tracks the state of the project so that any collaborator or future ses
 - **Dataset bootstrap CLI (MetaSchedule mode)**: `scripts/bootstrap_dataset.py` now defaults to MetaSchedule and ships built-in TVMScript workloads (vecadd, gemm, bmm, conv2d, depthwise, layernorm, softmax) with shape overrides, dtype-aware input gen, and optional RPC runner wiring for remote measurement.
 - **Bootstrap review decisions**: confirmed current pipeline is functional but lacks alignment with TVM `TuningRecord` fields and needs broader workload/shape/hardware coverage plus ranking-friendly sampling.
 - **Schema enrichment**: dataset records now capture target strings, workload keys (structural hash), and original vs post-schedule TIR to better mirror TVM `TuningRecord` needs.
+- **Sweep driver**: added `scripts/sweep_workloads.py` to run multi-workload sweeps and merge Parquet shards across operators/shapes/targets.
 
 ## Immediate Next Steps
 - **Workload diversity + shape sweeps**: add NHWC/1x1/grouped conv, broadcast elementwise, reductions, transformer micro-kernels; introduce shape sampling modes (grid/random ranges) and multi-operator runs.

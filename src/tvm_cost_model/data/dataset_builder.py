@@ -38,6 +38,7 @@ class MeasurementRecord:
     hardware_id: str
     target: str | None = None
     workload_key: str | None = None
+    hardware_features: Dict[str, float] | None = None
 
     def as_dict(self) -> Dict[str, object]:
         return {
@@ -50,6 +51,7 @@ class MeasurementRecord:
             "target": self.target,
             "workload_key": self.workload_key,
             "original_tir": self.original_tir,
+            "hardware_features": json.dumps(self.hardware_features or {}),
         }
 
 
@@ -89,6 +91,7 @@ class DatasetBuilder:
         batches: int,
         batch_size: int,
         hardware_id: str,
+        hardware_features: Dict[str, float] | None = None,
     ) -> List[MeasurementRecord]:
         """Collect measurement records for the requested operator."""
 
@@ -107,6 +110,7 @@ class DatasetBuilder:
                         target=sample.target,
                         workload_key=sample.workload_key,
                         original_tir=sample.original_tir,
+                        hardware_features=hardware_features,
                     )
                 )
         return measurements

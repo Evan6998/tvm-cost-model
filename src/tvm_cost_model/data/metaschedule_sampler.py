@@ -52,22 +52,40 @@ class MetaScheduleSampler(ScheduleSampler):
         design_spaces = ctx.generate_design_space()
 
         samples: list[ScheduleSample] = []
+        # Always include the original TIR as a baseline sample
+        samples.append(
+            ScheduleSample(
+                operator=operator,
+                schedule_json="",
+                original_tir=original_tir,
+                scheduled_tir=original_tir,
+                workload_shape=self._normalize_workload_shape(self._workload_shape_fn(operator)),
+                target=str(self.target),
+                workload_key=workload_key,
+            )
+        )
+        if not design_spaces:
+            raise RuntimeError(f"No design spaces generated for operator {operator!r}")
+
         for i in range(batch):
             sch = design_spaces[i % len(design_spaces)]
-            j = sch.trace.as_json() # type: ignore[union-attr]
-            trace_json = json.dumps(j, default=tvm_default_encoder)
-            scheduled_script = str(sch.mod.script())
+            trace = sch.trace.as_json()  # type: ignore[union-attr]
+            scheduled_script, trace_json = str(sch.mod.script()), json.dumps(trace, default=tvm_default_encoder)
+            if not scheduled_script or not trace_json:
+                continue
             samples.append(
                 ScheduleSample(
                     operator=operator,
                     schedule_json=trace_json,
+                    original_tir=original_tir,
                     scheduled_tir=scheduled_script,
                     workload_shape=self._normalize_workload_shape(self._workload_shape_fn(operator)),
                     target=str(self.target),
                     workload_key=workload_key,
-                    original_tir=original_tir,
                 )
             )
+        if len(samples) < 2:
+            raise RuntimeError(f"Insufficient schedules generated for operator {operator!r}")
         return samples
     
     @staticmethod
@@ -76,7 +94,6 @@ class MetaScheduleSampler(ScheduleSampler):
         for name, shape in workload.items():
             normalized[name] = _normalize_shape(shape)
         return normalized
-    
 
 
 def tvm_default_encoder(obj: Any) -> Any:
