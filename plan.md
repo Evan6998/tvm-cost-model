@@ -22,11 +22,17 @@ This file tracks the state of the project so that any collaborator or future ses
 - **TVM integration scaffold**: TVMGraphBuilder now uses Python `stmt_functor.post_order_visit` to parse real TIR; MetaSchedule sampler emits design-space schedules and measures locally via `tvm.tir.build` + `time_evaluator`.
 - **Encoded ranking pairs**: pipeline from MeasurementRecords through GraphBuilder/GraphEncoder to produce model-ready pairs for the ranking head.
 - **MetaSchedule measurement plumbing**: measurement now supports input synthesis from `workload_shape`, optional runner hooks, and a `MetaScheduleRuntimeEvaluator` that slots into `DatasetBuilder`.
-- **Dataset bootstrap CLI (MetaSchedule mode)**: `scripts/bootstrap_dataset.py` can now generate Parquet artifacts via MetaSchedule sampling/measurement (vector-add builtin IRModule) with target/device/number/repeat configuration; defaults to MetaSchedule mode.
+- **Dataset bootstrap CLI (MetaSchedule mode)**: `scripts/bootstrap_dataset.py` now defaults to MetaSchedule and ships built-in TVMScript workloads (vecadd, gemm, bmm, conv2d, depthwise, layernorm, softmax) with shape overrides, dtype-aware input gen, and optional RPC runner wiring for remote measurement.
+- **Bootstrap review decisions**: confirmed current pipeline is functional but lacks alignment with TVM `TuningRecord` fields and needs broader workload/shape/hardware coverage plus ranking-friendly sampling.
+- **Schema enrichment**: dataset records now capture target strings, workload keys (structural hash), and original vs post-schedule TIR to better mirror TVM `TuningRecord` needs.
+- **Sweep driver**: added `scripts/sweep_workloads.py` to run multi-workload sweeps and merge Parquet shards across operators/shapes/targets.
 
 ## Immediate Next Steps
-- **Dataset expansion (builtins registry)**: add TVMScript suppliers for GEMM, Conv2D (NCHW/OIHW), Depthwise Conv, BMM, LayerNorm, and Softmax with shape/dtype arguments; let the CLI select an operator and emit the right `workload_shape`/inputs.
-- **Measurement on real hardware**: expose RPC/cluster runner config through the CLI, wire multi-input/dtype workload metadata into `MetaScheduleSampler`/`MetaScheduleRuntimeEvaluator`, and validate collection on Ampere + Ada (≥50k labeled schedules per GPU).
+- **Workload diversity + shape sweeps**: add NHWC/1x1/grouped conv, broadcast elementwise, reductions, transformer micro-kernels; introduce shape sampling modes (grid/random ranges) and multi-operator runs.
+- **Multi-workload sweep driver**: add a `sweep_workloads.py` that iterates operators/shapes/targets, invokes the bootstrapper, and merges Parquet shards.
+- **Ranking-friendly sampling**: extend MetaScheduleSampler to inject random/mutated schedules as hard negatives and guarantee sufficient variety per workload.
+- **Hardware metadata**: start collecting numeric hardware features (cores, memory, cache, clocks) alongside `hardware_id` for cross-hardware training.
+- **Measurement on real hardware**: validate RPC/remote runner path on Ampere + Ada; target ≥50k labeled schedules per GPU with enriched metadata.
 - **Model bring-up**: start PyTorch/PyG R-GAT prototype on encoded graphs and mined pairs; keep Node-MLP as a regression baseline and track Kendall Tau/NDCG on held-out pairs.
 
 ## Pending / Upcoming

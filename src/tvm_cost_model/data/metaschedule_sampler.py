@@ -39,6 +39,8 @@ class MetaScheduleSampler(ScheduleSampler):
 
     def sample(self, operator: str, batch: int) -> Iterable[ScheduleSample]:
         mod = self.module_supplier(operator)
+        original_tir = str(mod.script())
+        workload_key = str(tvm.ir.structural_hash(mod)) # type: ignore[union-attr]
 
         ctx = ms.TuneContext(
             mod=mod,
@@ -50,22 +52,48 @@ class MetaScheduleSampler(ScheduleSampler):
         design_spaces = ctx.generate_design_space()
 
         samples: list[ScheduleSample] = []
+        # Always include the original TIR as a baseline sample
+        samples.append(
+            ScheduleSample(
+                operator=operator,
+                schedule_json="",
+                original_tir=original_tir,
+                scheduled_tir=original_tir,
+                workload_shape=self._normalize_workload_shape(self._workload_shape_fn(operator)),
+                target=str(self.target),
+                workload_key=workload_key,
+            )
+        )
+        if not design_spaces:
+            raise RuntimeError(f"No design spaces generated for operator {operator!r}")
+
         for i in range(batch):
             sch = design_spaces[i % len(design_spaces)]
-            j = sch.trace.as_json() # type: ignore[union-attr]
-            trace_json = json.dumps(j, default=tvm_default_encoder)
-            tir_script = sch.mod.script()
-            tir_text = str(tir_script)
+            trace = sch.trace.as_json()  # type: ignore[union-attr]
+            scheduled_script, trace_json = str(sch.mod.script()), json.dumps(trace, default=tvm_default_encoder)
+            if not scheduled_script or not trace_json:
+                continue
             samples.append(
                 ScheduleSample(
                     operator=operator,
                     schedule_json=trace_json,
-                    tir=tir_text,
-                    workload_shape=self._workload_shape_fn(operator),
+                    original_tir=original_tir,
+                    scheduled_tir=scheduled_script,
+                    workload_shape=self._normalize_workload_shape(self._workload_shape_fn(operator)),
+                    target=str(self.target),
+                    workload_key=workload_key,
                 )
             )
+        if len(samples) < 2:
+            raise RuntimeError(f"Insufficient schedules generated for operator {operator!r}")
         return samples
     
+    @staticmethod
+    def _normalize_workload_shape(workload: dict[str, Any]) -> dict[str, tuple[int, ...]]:
+        normalized: dict[str, tuple[int, ...]] = {}
+        for name, shape in workload.items():
+            normalized[name] = _normalize_shape(shape)
+        return normalized
 
 
 def tvm_default_encoder(obj: Any) -> Any:
@@ -128,7 +156,7 @@ def measure_schedules(
     target: str,
     hardware_id: str,
     input_generator: Callable[[ScheduleSample, "tvm.runtime.Device"], Sequence["tvm.runtime.Tensor"]],
-    device: "tvm.runtime.Device",
+    device: "tvm.runtime.Device | None",
     number: int = 5,
     repeat: int = 1,
     runner: Callable[
@@ -143,29 +171,34 @@ def measure_schedules(
     """
 
     tvm_target = tvm.target.Target(target)
+    exec_device = device or tvm.device(str(tvm_target.kind.name), 0)  # type: ignore[union-attr]
     for sample in schedules:
-        mod = from_source(sample.tir)
-        if sample.schedule_json:
+        mod_src = sample.original_tir
+        mod = from_source(mod_src)
+        if sample.schedule_json and sample.original_tir:
             mod = apply_trace_to_module(mod, sample.schedule_json)
         built = tir.build(mod, target=tvm_target)
-        inputs = input_generator(sample, device)  # type: ignore
+        inputs = input_generator(sample, exec_device)  # type: ignore
         if runner:
-            result_ms = runner(built, inputs, device)  # type: ignore
+            result_ms = runner(built, inputs, exec_device)  # type: ignore
         else:
             time_eval = built.time_evaluator( # type: ignore[union-attr]
-                built.entry_name, 
-                device, 
-                number=number, 
+                built.entry_name,
+                exec_device,
+                number=number,
                 repeat=repeat
             )
             result_ms = float(time_eval(*inputs).mean) * 1000.0  # sec -> ms
         yield MeasurementRecord(
             operator=sample.operator,
             schedule_json=sample.schedule_json,
-            tir=sample.tir,
+            scheduled_tir=sample.scheduled_tir,
             workload_shape=sample.workload_shape,
             runtime_ms=float(result_ms),
             hardware_id=hardware_id,
+            target=str(tvm_target),
+            workload_key=sample.workload_key,
+            original_tir=sample.original_tir,
         )
 
 
@@ -175,13 +208,13 @@ class MetaScheduleRuntimeEvaluator(RuntimeEvaluator):
     def __init__(
         self,
         target: str,
-        device: "tvm.runtime.Device",
-        input_generator: Callable[
-            [ScheduleSample, "tvm.runtime.Device"], Sequence["tvm.runtime.Tensor"]
-        ],
-        hardware_id: str,
+        hardware_id: str = "unknown",
         number: int = 5,
         repeat: int = 1,
+        device: "tvm.runtime.Device | None" = None,
+        input_generator: Callable[
+            [ScheduleSample, "tvm.runtime.Device"], Sequence["tvm.runtime.Tensor"]
+        ] = generate_inputs_from_workload,
         runner: Callable[
             ["tvm.runtime.Module", Sequence["tvm.runtime.Tensor"], "tvm.runtime.Device"], float
         ] | None = None,

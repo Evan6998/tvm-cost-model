@@ -34,9 +34,9 @@ def test_metaschedule_sampler_emits_samples(tmp_path: Path):
     target = "llvm -num-cores 4"
     sampler = MetaScheduleSampler(target=target, module_supplier=_module_supplier, work_dir=tmp_path, workload_shape_fn=lambda _: {})
     samples = list(sampler.sample("main", batch=2))
-    assert len(samples) == 2
+    assert len(samples) == 3  # includes unscheduled baseline
     assert all(isinstance(s.schedule_json, str) for s in samples)
-    assert all(isinstance(s.tir, str) and s.tir for s in samples)
+    assert all(isinstance(s.scheduled_tir, str) and s.scheduled_tir for s in samples)
 
 
 def test_metaschedule_sampler_populates_workload_shapes(tmp_path: Path):
@@ -64,7 +64,8 @@ class Module:
     sample = ScheduleSample(
         operator="main",
         schedule_json="",
-        tir=tir_script,
+        original_tir=tir_script,
+        scheduled_tir=tir_script,
         workload_shape={"A": (4,)},
     )
     records = list(
@@ -108,7 +109,8 @@ class Module:
     sample = ScheduleSample(
         operator="main",
         schedule_json="",
-        tir=tir_script,
+        original_tir=tir_script,
+        scheduled_tir=tir_script,
         workload_shape={"A": (4,)},
     )
     evaluator = MetaScheduleRuntimeEvaluator(

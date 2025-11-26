@@ -3,7 +3,7 @@ from tvm_cost_model.training.pair_sampling import _classify_delta, make_ranking_
 
 
 def _mk(measurements: list[float]):
-    return [MeasurementRecord(operator="gemm", schedule_json="{}", tir="", workload_shape={}, runtime_ms=rt, hardware_id="hw") for rt in measurements]
+    return [MeasurementRecord(operator="gemm", schedule_json="{}", original_tir="", scheduled_tir="", workload_shape={}, runtime_ms=rt, hardware_id="hw") for rt in measurements]
 
 
 def test_classify_delta_labels_easy_medium_hard():
