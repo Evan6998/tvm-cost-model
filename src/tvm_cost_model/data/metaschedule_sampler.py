@@ -67,12 +67,17 @@ class MetaScheduleSampler(ScheduleSampler):
         if not design_spaces:
             raise RuntimeError(f"No design spaces generated for operator {operator!r}")
 
+        scheduled_count = 0
         for i in range(batch):
             sch = design_spaces[i % len(design_spaces)]
             trace = sch.trace.as_json()  # type: ignore[union-attr]
+            # Treat empty or missing insts as unusable schedules
+            if not (isinstance(trace, dict) and trace.get("insts")): # type: ignore
+                continue
             scheduled_script, trace_json = str(sch.mod.script()), json.dumps(trace, default=tvm_default_encoder)
             if not scheduled_script or not trace_json:
                 continue
+            scheduled_count += 1
             samples.append(
                 ScheduleSample(
                     operator=operator,
@@ -84,8 +89,11 @@ class MetaScheduleSampler(ScheduleSampler):
                     workload_key=workload_key,
                 )
             )
-        if len(samples) < 2:
-            raise RuntimeError(f"Insufficient schedules generated for operator {operator!r}")
+        if scheduled_count == 0:
+            raise RuntimeError(
+                f"Design spaces for operator {operator!r} on target {self.target} produced only empty traces."
+                " No schedule rules fired; ensure the workload has schedulable blocks or supply custom schedule rules."
+            )
         return samples
     
     @staticmethod
