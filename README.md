@@ -16,6 +16,8 @@ This repository contains scaffolding for a transferable, invariant, and explaina
 2. Install the package in editable mode with dev dependencies:
    ```bash
    source .venv/bin/activate
+   python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cpu mlc-ai-nightly-cpu
+
    pip install -e .[dev]
    ```
 3. Run stub workflows:
