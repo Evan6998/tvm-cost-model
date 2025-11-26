@@ -22,14 +22,14 @@ This file tracks the state of the project so that any collaborator or future ses
 - **TVM integration scaffold**: TVMGraphBuilder now uses Python `stmt_functor.post_order_visit` to parse real TIR; MetaSchedule sampler emits design-space schedules and measures locally via `tvm.tir.build` + `time_evaluator`.
 - **Encoded ranking pairs**: pipeline from MeasurementRecords through GraphBuilder/GraphEncoder to produce model-ready pairs for the ranking head.
 - **MetaSchedule measurement plumbing**: measurement now supports input synthesis from `workload_shape`, optional runner hooks, and a `MetaScheduleRuntimeEvaluator` that slots into `DatasetBuilder`.
-- **Dataset bootstrap CLI (MetaSchedule mode)**: `scripts/bootstrap_dataset.py` can now generate Parquet artifacts via MetaSchedule sampling/measurement (vector-add builtin IRModule) with target/device/number/repeat configuration.
+- **Dataset bootstrap CLI (MetaSchedule mode)**: `scripts/bootstrap_dataset.py` can now generate Parquet artifacts via MetaSchedule sampling/measurement (vector-add builtin IRModule) with target/device/number/repeat configuration; defaults to MetaSchedule mode.
 
 ## Immediate Next Steps
-- Expose remote-runner configuration (RPC/cluster) and richer workload metadata (dtypes, multiple inputs) so measurement can leave the local host.
-- Begin PyTorch/PyG R-GAT prototyping using encoded graphs and mined pairs; keep Node-MLP as a baseline.
+- **Dataset expansion (builtins registry)**: add TVMScript suppliers for GEMM, Conv2D (NCHW/OIHW), Depthwise Conv, BMM, LayerNorm, and Softmax with shape/dtype arguments; let the CLI select an operator and emit the right `workload_shape`/inputs.
+- **Measurement on real hardware**: expose RPC/cluster runner config through the CLI, wire multi-input/dtype workload metadata into `MetaScheduleSampler`/`MetaScheduleRuntimeEvaluator`, and validate collection on Ampere + Ada (≥50k labeled schedules per GPU).
+- **Model bring-up**: start PyTorch/PyG R-GAT prototype on encoded graphs and mined pairs; keep Node-MLP as a regression baseline and track Kendall Tau/NDCG on held-out pairs.
 
 ## Pending / Upcoming
-- **Model prototyping**: implement the R-GAT backbone with ranking + attribution heads, then benchmark against TVM’s XGBoost cost model (Step 3).
 - **Explainability validation**: visualization tooling and fidelity experiments for attribution signals (Step 4).
 - **MetaSchedule integration**: PyCostModel wrapper, fallback logic, and telemetry plumbing (Step 5).
 - **Full evaluation + release**: cross-operator/GPU experiments, ablations, and packaging of datasets/scripts (Step 6).

@@ -128,9 +128,9 @@ def measure_schedules(
     target: str,
     hardware_id: str,
     input_generator: Callable[[ScheduleSample, "tvm.runtime.Device"], Sequence["tvm.runtime.Tensor"]],
+    device: "tvm.runtime.Device",
     number: int = 5,
     repeat: int = 1,
-    device: "tvm.runtime.Device | None" = None,
     runner: Callable[
         ["tvm.runtime.Module", Sequence["tvm.runtime.Tensor"], "tvm.runtime.Device"], float
     ] | None = None,
@@ -143,19 +143,18 @@ def measure_schedules(
     """
 
     tvm_target = tvm.target.Target(target)
-    dev = device or tvm.device(str(tvm_target.kind.name), 0) # type: ignore[union-attr]
     for sample in schedules:
         mod = from_source(sample.tir)
         if sample.schedule_json:
             mod = apply_trace_to_module(mod, sample.schedule_json)
         built = tir.build(mod, target=tvm_target)
-        inputs = input_generator(sample, dev)  # type: ignore
+        inputs = input_generator(sample, device)  # type: ignore
         if runner:
-            result_ms = runner(built, inputs, dev)  # type: ignore
+            result_ms = runner(built, inputs, device)  # type: ignore
         else:
             time_eval = built.time_evaluator( # type: ignore[union-attr]
                 built.entry_name, 
-                dev, 
+                device, 
                 number=number, 
                 repeat=repeat
             )
@@ -176,13 +175,13 @@ class MetaScheduleRuntimeEvaluator(RuntimeEvaluator):
     def __init__(
         self,
         target: str,
+        device: "tvm.runtime.Device",
         input_generator: Callable[
             [ScheduleSample, "tvm.runtime.Device"], Sequence["tvm.runtime.Tensor"]
-        ] = generate_inputs_from_workload,
-        hardware_id: str = "unknown",
+        ],
+        hardware_id: str,
         number: int = 5,
         repeat: int = 1,
-        device: "tvm.runtime.Device | None" = None,
         runner: Callable[
             ["tvm.runtime.Module", Sequence["tvm.runtime.Tensor"], "tvm.runtime.Device"], float
         ] | None = None,
