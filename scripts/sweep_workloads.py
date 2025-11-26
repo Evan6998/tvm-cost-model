@@ -13,7 +13,7 @@ from pydantic import BaseModel, TypeAdapter
 
 DEFAULT_WORKLOADS = [
     ("vecadd", {"n": 1024}),
-    ("gemm", {"m": 256, "n": 256, "k": 256}),
+    ("gemm", {"m": 512, "n": 512, "k": 512}),
     ("bmm", {"batch": 8, "m": 128, "n": 128, "k": 128}),
     ("conv2d_nchw", {"n": 1, "ci": 64, "co": 64, "h": 56, "w": 56, "kh": 3, "kw": 3}),
     ("depthwise_conv2d", {"n": 1, "ci": 64, "h": 56, "w": 56, "kh": 3, "kw": 3}),

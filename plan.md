@@ -26,10 +26,12 @@ This file tracks the state of the project so that any collaborator or future ses
 - **Bootstrap review decisions**: confirmed current pipeline is functional but lacks alignment with TVM `TuningRecord` fields and needs broader workload/shape/hardware coverage plus ranking-friendly sampling.
 - **Schema enrichment**: dataset records now capture target strings, workload keys (structural hash), and original vs post-schedule TIR to better mirror TVM `TuningRecord` needs.
 - **Sweep driver**: added `scripts/sweep_workloads.py` to run multi-workload sweeps and merge Parquet shards across operators/shapes/targets.
+- **Hard-negative sampling**: MetaSchedule sampler now injects unscheduled baselines and synthetic loop splits when design spaces are empty to ensure scheduled variants differ from originals.
+- **Hardware metadata plumbing**: `MeasurementRecord` and `DatasetBuilder.collect` accept hardware feature dicts for cross-hardware training.
+- **Empty-trace detection**: MetaSchedule sampler now surfaces a clear error when design spaces return empty traces (e.g., `[[], []]`) instead of silently falling back.
 
 ## Immediate Next Steps
 - **Workload diversity + shape sweeps**: add NHWC/1x1/grouped conv, broadcast elementwise, reductions, transformer micro-kernels; introduce shape sampling modes (grid/random ranges) and multi-operator runs.
-- **Multi-workload sweep driver**: add a `sweep_workloads.py` that iterates operators/shapes/targets, invokes the bootstrapper, and merges Parquet shards.
 - **Ranking-friendly sampling**: extend MetaScheduleSampler to inject random/mutated schedules as hard negatives and guarantee sufficient variety per workload.
 - **Hardware metadata**: start collecting numeric hardware features (cores, memory, cache, clocks) alongside `hardware_id` for cross-hardware training.
 - **Measurement on real hardware**: validate RPC/remote runner path on Ampere + Ada; target ≥50k labeled schedules per GPU with enriched metadata.
