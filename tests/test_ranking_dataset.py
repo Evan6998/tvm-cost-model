@@ -9,7 +9,8 @@ def _mk(records: list[float]):
         MeasurementRecord(
             operator="gemm",
             schedule_json="{}",
-            tir=f"for i in range({extent}): c[i] = a[i]\n",
+            original_tir=f"for i in range({extent}): c[i] = a[i]\n",
+            scheduled_tir=f"for i in range({extent}): c[i] = a[i]\n",
             workload_shape={},
             runtime_ms=extent,
             hardware_id="hw",

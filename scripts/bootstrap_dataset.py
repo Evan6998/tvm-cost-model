@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
-from typing import Callable, Dict, Tuple
+import tempfile
 from functools import partial
+from pathlib import Path
+from typing import Callable, Dict, Sequence, Tuple
 
 import tvm  # type: ignore[import]
 from tvm.script import from_source  # type: ignore[import]
@@ -14,8 +15,8 @@ from tvm.script import from_source  # type: ignore[import]
 from tvm_cost_model.data.metaschedule_sampler import (
     MetaScheduleRuntimeEvaluator,
     MetaScheduleSampler,
-    ScheduleSampler,
     RuntimeEvaluator,
+    ScheduleSampler,
     generate_inputs_from_workload,
 )
 from tvm_cost_model.data.dataset_builder import (
@@ -28,8 +29,8 @@ DEFAULT_SHAPES: Dict[str, Dict[str, int]] = {
     "vecadd": {"n": 1024},
     "gemm": {"m": 128, "n": 128, "k": 128},
     "bmm": {"batch": 8, "m": 128, "n": 128, "k": 128},
-    "conv2d_nchw": {"n": 1, "ci": 64, "co": 64, "h": 56, "w": 56, "kh": 3, "kw": 3, "stride": 1, "padding": 1},
-    "depthwise_conv2d": {"n": 1, "ci": 64, "h": 56, "w": 56, "kh": 3, "kw": 3, "stride": 1, "padding": 1},
+    "conv2d_nchw": {"n": 1, "ci": 64, "co": 64, "h": 56, "w": 56, "kh": 3, "kw": 3, "stride": 1, "padding": 0},
+    "depthwise_conv2d": {"n": 1, "ci": 64, "h": 56, "w": 56, "kh": 3, "kw": 3, "stride": 1, "padding": 0},
     "layernorm": {"n": 64, "hidden": 256},
     "softmax": {"n": 64, "k": 256},
 }
@@ -90,6 +91,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--device-idx", type=int, default=0, help="Device index for measurement")
     parser.add_argument("--number", type=int, default=5, help="Number of timing runs")
     parser.add_argument("--repeat", type=int, default=1, help="Number of repeats")
+    parser.add_argument("--rpc-host", default="", help="RPC host for remote measurement")
+    parser.add_argument("--rpc-port", type=int, default=9090, help="RPC port for remote measurement")
+    parser.add_argument("--rpc-key", default="", help="RPC key for tracker if used")
     return parser
 
 
@@ -104,6 +108,38 @@ def parse_shape_arg(shape_arg: str) -> Dict[str, int]:
         return {k: int(v) for k, v in parsed.items()}
     except Exception as err:
         raise ValueError("--shape values must be convertible to int") from err
+
+
+def build_device_and_runner(args: argparse.Namespace) -> Tuple["tvm.runtime.Device", Callable[["tvm.runtime.Module", Sequence["tvm.runtime.Tensor"], "tvm.runtime.Device"], float]]:
+    """Return a device handle and a runner (local or RPC-backed)."""
+    if args.rpc_host:
+
+        remote = tvm.rpc.connect(args.rpc_host, args.rpc_port, key=args.rpc_key or None) # type: ignore
+        dev = remote.device(args.device_kind, args.device_idx) # type: ignore
+
+        def rpc_runner(module: "tvm.runtime.Module", inputs: Sequence["tvm.runtime.Tensor"], _dev: "tvm.runtime.Device") -> float:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                path = Path(tmpdir) / "mod.so"
+                module.export_library(path) # type: ignore
+                remote.upload(str(path)) # type: ignore
+                remote_mod = remote.load_module(path.name) # type: ignore
+                time_eval = remote_mod.time_evaluator( # type: ignore[attr-defined]
+                    remote_mod.entry_name, dev, number=args.number, repeat=args.repeat # type: ignore[attr-defined]
+                )
+                return float(time_eval(*inputs).mean) * 1000.0  # type: ignore
+
+        return dev, rpc_runner # type: ignore
+
+    dev = tvm.runtime.device(args.device_kind, args.device_idx) # type: ignore
+
+    def local_runner(module: "tvm.runtime.Module", inputs: Sequence["tvm.runtime.Tensor"], _dev: tvm.runtime.Device) -> float:
+        # fallback: use module's time_evaluator on the provided device
+        time_eval = module.time_evaluator(  # type: ignore[attr-defined]
+            module.entry_name, dev, number=args.number, repeat=args.repeat # type: ignore[attr-defined]
+        )
+        return float(time_eval(*inputs).mean) * 1000.0
+
+    return dev, local_runner # type: ignore
 
 
 def main() -> None:
@@ -121,7 +157,7 @@ def main() -> None:
         sampler: ScheduleSampler = SyntheticScheduleSampler(seed=args.seed)
         evaluator: RuntimeEvaluator = SyntheticRuntimeEvaluator(seed=args.seed)
         artifact_name = f"{args.mode}_{args.operator}_{args.hardware}".lower()
-    else:
+    elif args.mode == "metaschedule":
         module_supplier, workload_shape = build_builtin_module_supplier(
             operator=args.operator,
             shape=shape,
@@ -135,16 +171,19 @@ def main() -> None:
             work_dir=Path(args.work_dir),
             workload_shape_fn=workload_shape_fn,  # type: ignore
         )
-        device = tvm.runtime.device(args.device_kind, args.device_idx)
+        device, runner = build_device_and_runner(args)
         evaluator = MetaScheduleRuntimeEvaluator(
             target=args.target,
             hardware_id=args.hardware,
             number=args.number,
             repeat=args.repeat,
-            device=device, # type: ignore
+            device=device,
+            runner=runner,
             input_generator=partial(generate_inputs_from_workload, dtype=args.dtype),
         )
         artifact_name = f"{args.mode}_{args.operator}_{args.hardware}_{args.target}".lower()
+    else:
+        raise ValueError(f"Unsupported mode '{args.mode}'")
 
     artifact_name = artifact_name.replace(" ", "_")
     builder = DatasetBuilder(sampler, evaluator, output_dir)
@@ -233,8 +272,10 @@ class Module:
         kw = shape.get("kw", 3)
         stride = shape.get("stride", 1)
         padding = shape.get("padding", 0)
-        ho = (h + 2 * padding - kh) // stride + 1
-        wo = (w + 2 * padding - kw) // stride + 1
+        if padding != 0:
+            raise ValueError("Builtin conv2d_nchw does not implement padding; set padding=0.")
+        ho = (h - kh) // stride + 1
+        wo = (w - kw) // stride + 1
         tir_script = f"""
 @tvm.script.ir_module
 class Module:
@@ -269,8 +310,10 @@ class Module:
         kw = shape.get("kw", 3)
         stride = shape.get("stride", 1)
         padding = shape.get("padding", 0)
-        ho = (h + 2 * padding - kh) // stride + 1
-        wo = (w + 2 * padding - kw) // stride + 1
+        if padding != 0:
+            raise ValueError("Builtin depthwise_conv2d does not implement padding; set padding=0.")
+        ho = (h - kh) // stride + 1
+        wo = (w - kw) // stride + 1
         tir_script = f"""
 @tvm.script.ir_module
 class Module:

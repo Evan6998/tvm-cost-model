@@ -18,8 +18,11 @@ class ScheduleSample:
 
     operator: str
     schedule_json: str
-    tir: str
+    original_tir: str
+    scheduled_tir: str  # post-schedule TIR
     workload_shape: Dict[str, tuple[int, ...]]
+    workload_key: str | None = None
+    target: str | None = None
 
 
 @dataclass
@@ -28,19 +31,25 @@ class MeasurementRecord:
 
     operator: str
     schedule_json: str
-    tir: str
+    original_tir: str
+    scheduled_tir: str  # post-schedule TIR
     workload_shape: Dict[str, tuple[int, ...]]
     runtime_ms: float
     hardware_id: str
+    target: str | None = None
+    workload_key: str | None = None
 
     def as_dict(self) -> Dict[str, object]:
         return {
             "operator": self.operator,
             "schedule_json": self.schedule_json,
-            "tir": self.tir,
+            "scheduled_tir": self.scheduled_tir,
             "workload_shape": json.dumps(self.workload_shape),
             "runtime_ms": self.runtime_ms,
             "hardware_id": self.hardware_id,
+            "target": self.target,
+            "workload_key": self.workload_key,
+            "original_tir": self.original_tir,
         }
 
 
@@ -91,10 +100,13 @@ class DatasetBuilder:
                     MeasurementRecord(
                         operator=sample.operator,
                         schedule_json=sample.schedule_json,
-                        tir=sample.tir,
+                        scheduled_tir=sample.scheduled_tir,
                         workload_shape=sample.workload_shape,
                         runtime_ms=runtime_ms,
                         hardware_id=hardware_id,
+                        target=sample.target,
+                        workload_key=sample.workload_key,
+                        original_tir=sample.original_tir,
                     )
                 )
         return measurements
@@ -131,7 +143,8 @@ class SyntheticScheduleSampler:
             yield ScheduleSample(
                 operator=operator,
                 schedule_json=json.dumps(schedule),
-                tir=tir,
+                original_tir=tir,
+                scheduled_tir=tir,
                 workload_shape=shape,
             )
 

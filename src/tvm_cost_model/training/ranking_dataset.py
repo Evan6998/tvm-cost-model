@@ -31,8 +31,8 @@ def build_encoded_pairs(
 
     encoded_pairs: List[EncodedPair] = []
     for pair in make_ranking_pairs(measurements, easy_gap=easy_gap, hard_gap=hard_gap):
-        better_graph = builder.build(pair.better.tir)
-        worse_graph = builder.build(pair.worse.tir)
+        better_graph = builder.build(pair.better.scheduled_tir)
+        worse_graph = builder.build(pair.worse.scheduled_tir)
         encoded_pairs.append(
             EncodedPair(
                 better=encoder.encode(better_graph),
