@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Protocol
 
+from tqdm import tqdm
+
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -96,23 +98,26 @@ class DatasetBuilder:
         """Collect measurement records for the requested operator."""
 
         measurements: List[MeasurementRecord] = []
-        for _ in range(batches):
-            for sample in self._sampler.sample(operator, batch=batch_size):
-                runtime_ms = self._evaluator.evaluate(sample, hardware_id)
-                measurements.append(
-                    MeasurementRecord(
-                        operator=sample.operator,
-                        schedule_json=sample.schedule_json,
-                        scheduled_tir=sample.scheduled_tir,
-                        workload_shape=sample.workload_shape,
-                        runtime_ms=runtime_ms,
-                        hardware_id=hardware_id,
-                        target=sample.target,
-                        workload_key=sample.workload_key,
-                        original_tir=sample.original_tir,
-                        hardware_features=hardware_features,
+        total = batches * batch_size
+        with tqdm(total=total, desc=f"Collecting {operator}", unit="sched") as pbar:
+            for _ in range(batches):
+                for sample in self._sampler.sample(operator, batch=batch_size):
+                    runtime_ms = self._evaluator.evaluate(sample, hardware_id)
+                    measurements.append(
+                        MeasurementRecord(
+                            operator=sample.operator,
+                            schedule_json=sample.schedule_json,
+                            scheduled_tir=sample.scheduled_tir,
+                            workload_shape=sample.workload_shape,
+                            runtime_ms=runtime_ms,
+                            hardware_id=hardware_id,
+                            target=sample.target,
+                            workload_key=sample.workload_key,
+                            original_tir=sample.original_tir,
+                            hardware_features=hardware_features,
+                        )
                     )
-                )
+                    pbar.update(1)
         return measurements
 
     def export(self, measurements: List[MeasurementRecord], artifact_name: str) -> Path:

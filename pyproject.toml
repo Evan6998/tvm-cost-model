@@ -16,6 +16,7 @@ dependencies = [
     "torch>=2.3",
     "numpy>=1.26",
     "pydantic>=2.12.5",
+    "tqdm>=4.67",
 ]
 
 [project.optional-dependencies]

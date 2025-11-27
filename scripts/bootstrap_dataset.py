@@ -11,6 +11,8 @@ from typing import Callable, Dict, Sequence, Tuple
 
 import tvm  # type: ignore[import]
 from tvm.script import from_source  # type: ignore[import]
+from tvm import te  # type: ignore[import]
+from tvm.te import create_prim_func  # type: ignore[import]
 
 from tvm_cost_model.data.metaschedule_sampler import (
     MetaScheduleRuntimeEvaluator,
@@ -89,7 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dtype", default="float32", help="DType for builtin module buffers")
     parser.add_argument("--device-kind", default="llvm", help="Device kind for measurement")
     parser.add_argument("--device-idx", type=int, default=0, help="Device index for measurement")
-    parser.add_argument("--number", type=int, default=5, help="Number of timing runs")
+    parser.add_argument("--number", type=int, default=10, help="Number of timing runs")
     parser.add_argument("--repeat", type=int, default=1, help="Number of repeats")
     parser.add_argument("--rpc-host", default="", help="RPC host for remote measurement")
     parser.add_argument("--rpc-port", type=int, default=9090, help="RPC port for remote measurement")
@@ -219,24 +221,22 @@ class Module:
 """
         workload_shape = {"A": (n,), "B": (n,), "C": (n,)}
     elif op == "gemm":
-        m = shape.get("m", 128)
-        n = shape.get("n", 128)
-        k = shape.get("k", 128)
+        m = shape["m"]
+        n = shape["n"]
+        k = shape["k"]
         tir_script = f"""
-@tvm.script.ir_module
-class Module:
-    @T.prim_func
-    def main(
-        A: T.Buffer(({m}, {k}), "{dtype}"),
-        B: T.Buffer(({k}, {n}), "{dtype}"),
-        C: T.Buffer(({m}, {n}), "{dtype}"),
-    ):
-        T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
-        for i in T.serial(0, {m}):
-            for j in T.serial(0, {n}):
-                C[i, j] = T.cast(0, "{dtype}")
-                for kk in T.serial(0, {k}):
-                    C[i, j] = C[i, j] + A[i, kk] * B[kk, j]
+@T.prim_func
+def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, ({m}, {k}))
+    B = T.match_buffer(b, ({k}, {n}))
+    C = T.match_buffer(c, ({m}, {n}))
+
+    for i, j, k in T.grid({m}, {n}, {k}):
+        with T.block():
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] += A[vi, vk] * B[vj, vk]
 """
         workload_shape = {"A": (m, k), "B": (k, n), "C": (m, n)}
     elif op == "bmm":
