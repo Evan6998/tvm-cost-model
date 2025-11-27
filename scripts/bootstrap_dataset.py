@@ -207,17 +207,17 @@ def build_builtin_module_supplier(
     if op == "vecadd":
         n = shape.get("n", DEFAULT_SHAPES["vecadd"]["n"])
         tir_script = f"""
-@tvm.script.ir_module
-class Module:
-    @T.prim_func
-    def main(
-        A: T.Buffer(({n},), "{dtype}"),
-        B: T.Buffer(({n},), "{dtype}"),
-        C: T.Buffer(({n},), "{dtype}"),
-    ):
-        T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
-        for i in T.serial(0, {n}):
-            C[i] = A[i] + B[i]
+@T.prim_func
+def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
+    A = T.match_buffer(a, ({n},), "{dtype}")
+    B = T.match_buffer(b, ({n},), "{dtype}")
+    C = T.match_buffer(c, ({n},), "{dtype}")
+
+    for i in T.grid({n}):
+        with T.block("vecadd"):
+            vi = T.axis.spatial({n}, i)
+            C[vi] = A[vi] + B[vi]
 """
         workload_shape = {"A": (n,), "B": (n,), "C": (n,)}
     elif op == "gemm":
@@ -245,21 +245,19 @@ def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
         n = shape.get("n", 128)
         k = shape.get("k", 128)
         tir_script = f"""
-@tvm.script.ir_module
-class Module:
-    @T.prim_func
-    def main(
-        A: T.Buffer(({b}, {m}, {k}), "{dtype}"),
-        B: T.Buffer(({b}, {k}, {n}), "{dtype}"),
-        C: T.Buffer(({b}, {m}, {n}), "{dtype}"),
-    ):
-        T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
-        for batch in T.serial(0, {b}):
-            for i in T.serial(0, {m}):
-                for j in T.serial(0, {n}):
-                    C[batch, i, j] = T.cast(0, "{dtype}")
-                    for kk in T.serial(0, {k}):
-                        C[batch, i, j] = C[batch, i, j] + A[batch, i, kk] * B[batch, kk, j]
+@T.prim_func
+def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
+    A = T.match_buffer(a, ({b}, {m}, {k}), "{dtype}")
+    B = T.match_buffer(b, ({b}, {k}, {n}), "{dtype}")
+    C = T.match_buffer(c, ({b}, {m}, {n}), "{dtype}")
+
+    for batch, i, j, kk in T.grid({b}, {m}, {n}, {k}):
+        with T.block("bmm"):
+            vb, vi, vj, vkk = T.axis.remap("SSSR", [batch, i, j, kk])
+            with T.init():
+                C[vb, vi, vj] = T.cast(0, "{dtype}")
+            C[vb, vi, vj] = C[vb, vi, vj] + A[vb, vi, vkk] * B[vb, vkk, vj]
 """
         workload_shape = {"A": (b, m, k), "B": (b, k, n), "C": (b, m, n)}
     elif op == "conv2d_nchw":
@@ -277,24 +275,19 @@ class Module:
         ho = (h - kh) // stride + 1
         wo = (w - kw) // stride + 1
         tir_script = f"""
-@tvm.script.ir_module
-class Module:
-    @T.prim_func
-    def main(
-        A: T.Buffer(({n}, {ci}, {h}, {w}), "{dtype}"),
-        B: T.Buffer(({co}, {ci}, {kh}, {kw}), "{dtype}"),
-        C: T.Buffer(({n}, {co}, {ho}, {wo}), "{dtype}"),
-    ):
-        T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
-        for nn in T.serial(0, {n}):
-            for ff in T.serial(0, {co}):
-                for yy in T.serial(0, {ho}):
-                    for xx in T.serial(0, {wo}):
-                        C[nn, ff, yy, xx] = T.cast(0, "{dtype}")
-                        for rc in T.serial(0, {ci}):
-                            for ry in T.serial(0, {kh}):
-                                for rx in T.serial(0, {kw}):
-                                    C[nn, ff, yy, xx] = C[nn, ff, yy, xx] + A[nn, rc, yy*{stride}+ry, xx*{stride}+rx] * B[ff, rc, ry, rx]
+@T.prim_func
+def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
+    A = T.match_buffer(a, ({n}, {ci}, {h}, {w}), "{dtype}")
+    B = T.match_buffer(b, ({co}, {ci}, {kh}, {kw}), "{dtype}")
+    C = T.match_buffer(c, ({n}, {co}, {ho}, {wo}), "{dtype}")
+
+    for nn, ff, yy, xx, rc, ry, rx in T.grid({n}, {co}, {ho}, {wo}, {ci}, {kh}, {kw}):
+        with T.block("conv2d_nchw"):
+            vnn, vff, vyy, vxx, vrc, vry, vrx = T.axis.remap("SSSSRRR", [nn, ff, yy, xx, rc, ry, rx])
+            with T.init():
+                C[vnn, vff, vyy, vxx] = T.cast(0, "{dtype}")
+            C[vnn, vff, vyy, vxx] = C[vnn, vff, vyy, vxx] + A[vnn, vrc, vyy * {stride} + vry, vxx * {stride} + vrx] * B[vff, vrc, vry, vrx]
 """
         workload_shape = {
             "A": (n, ci, h, w),
@@ -315,23 +308,19 @@ class Module:
         ho = (h - kh) // stride + 1
         wo = (w - kw) // stride + 1
         tir_script = f"""
-@tvm.script.ir_module
-class Module:
-    @T.prim_func
-    def main(
-        A: T.Buffer(({n}, {ci}, {h}, {w}), "{dtype}"),
-        B: T.Buffer(({ci}, 1, {kh}, {kw}), "{dtype}"),
-        C: T.Buffer(({n}, {ci}, {ho}, {wo}), "{dtype}"),
-    ):
-        T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
-        for nn in T.serial(0, {n}):
-            for cc in T.serial(0, {ci}):
-                for yy in T.serial(0, {ho}):
-                    for xx in T.serial(0, {wo}):
-                        C[nn, cc, yy, xx] = T.cast(0, "{dtype}")
-                        for ry in T.serial(0, {kh}):
-                            for rx in T.serial(0, {kw}):
-                                C[nn, cc, yy, xx] = C[nn, cc, yy, xx] + A[nn, cc, yy*{stride}+ry, xx*{stride}+rx] * B[cc, 0, ry, rx]
+@T.prim_func
+def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
+    A = T.match_buffer(a, ({n}, {ci}, {h}, {w}), "{dtype}")
+    B = T.match_buffer(b, ({ci}, 1, {kh}, {kw}), "{dtype}")
+    C = T.match_buffer(c, ({n}, {ci}, {ho}, {wo}), "{dtype}")
+
+    for nn, cc, yy, xx, ry, rx in T.grid({n}, {ci}, {ho}, {wo}, {kh}, {kw}):
+        with T.block("depthwise_conv2d"):
+            vnn, vcc, vyy, vxx, vry, vrx = T.axis.remap("SSSSRR", [nn, cc, yy, xx, ry, rx])
+            with T.init():
+                C[vnn, vcc, vyy, vxx] = T.cast(0, "{dtype}")
+            C[vnn, vcc, vyy, vxx] = C[vnn, vcc, vyy, vxx] + A[vnn, vcc, vyy * {stride} + vry, vxx * {stride} + vrx] * B[vcc, 0, vry, vrx]
 """
         workload_shape = {
             "A": (n, ci, h, w),
@@ -342,19 +331,18 @@ class Module:
         n = shape.get("n", 64)
         hidden = shape.get("hidden", 256)
         tir_script = f"""
-@tvm.script.ir_module
-class Module:
-    @T.prim_func
-    def main(
-        X: T.Buffer(({n}, {hidden}), "{dtype}"),
-        Gamma: T.Buffer(({hidden},), "{dtype}"),
-        Beta: T.Buffer(({hidden},), "{dtype}"),
-        Y: T.Buffer(({n}, {hidden}), "{dtype}"),
-    ):
-        T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
-        for i in T.serial(0, {n}):
-            for j in T.serial(0, {hidden}):
-                Y[i, j] = X[i, j] * Gamma[j] + Beta[j]
+@T.prim_func
+def main(x: T.handle, gamma: T.handle, beta: T.handle, y: T.handle) -> None:
+    T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
+    X = T.match_buffer(x, ({n}, {hidden}), "{dtype}")
+    Gamma = T.match_buffer(gamma, ({hidden},), "{dtype}")
+    Beta = T.match_buffer(beta, ({hidden},), "{dtype}")
+    Y = T.match_buffer(y, ({n}, {hidden}), "{dtype}")
+
+    for i, j in T.grid({n}, {hidden}):
+        with T.block("layernorm"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            Y[vi, vj] = X[vi, vj] * Gamma[vj] + Beta[vj]
 """
         workload_shape: dict[str, tuple[int, ...]] = {
             "X": (n, hidden),
@@ -366,17 +354,16 @@ class Module:
         n = shape.get("n", 64)
         k = shape.get("k", 256)
         tir_script = f"""
-@tvm.script.ir_module
-class Module:
-    @T.prim_func
-    def main(
-        X: T.Buffer(({n}, {k}), "{dtype}"),
-        Y: T.Buffer(({n}, {k}), "{dtype}"),
-    ):
-        T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
-        for i in T.serial(0, {n}):
-            for j in T.serial(0, {k}):
-                Y[i, j] = X[i, j]
+@T.prim_func
+def main(x: T.handle, y: T.handle) -> None:
+    T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
+    X = T.match_buffer(x, ({n}, {k}), "{dtype}")
+    Y = T.match_buffer(y, ({n}, {k}), "{dtype}")
+
+    for i, j in T.grid({n}, {k}):
+        with T.block("softmax"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            Y[vi, vj] = X[vi, vj]
 """
         workload_shape = {"X": (n, k), "Y": (n, k)}
     else:
