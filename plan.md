@@ -29,6 +29,7 @@ This file tracks the state of the project so that any collaborator or future ses
 - **Hard-negative sampling**: MetaSchedule sampler now injects unscheduled baselines and synthetic loop splits when design spaces are empty to ensure scheduled variants differ from originals.
 - **Hardware metadata plumbing**: `MeasurementRecord` and `DatasetBuilder.collect` accept hardware feature dicts for cross-hardware training.
 - **Empty-trace detection**: MetaSchedule sampler now surfaces a clear error when design spaces return empty traces (e.g., `[[], []]`) instead of silently falling back.
+- **Error hygiene**: do not mask missing dependencies or empty traces with silent fallbacks (e.g., strict import, explicit RuntimeErrors for missing schedule rules).
 
 ## Immediate Next Steps
 - **Workload diversity + shape sweeps**: add NHWC/1x1/grouped conv, broadcast elementwise, reductions, transformer micro-kernels; introduce shape sampling modes (grid/random ranges) and multi-operator runs.

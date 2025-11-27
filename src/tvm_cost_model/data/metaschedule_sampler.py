@@ -45,11 +45,38 @@ class MetaScheduleSampler(ScheduleSampler):
         ctx = ms.TuneContext(
             mod=mod,
             target=self.target,
-            space_generator=space_generator.PostOrderApply(),  # 或者 "post-order-apply"
+            space_generator=space_generator.PostOrderApply(
+                sch_rules="from-target",
+                postprocs="from-target",
+                mutator_probs="from-target",
+            ),
             task_name=operator,
+            num_threads=8,
+            search_strategy="evolutionary",
         )
 
         design_spaces = ctx.generate_design_space()
+        print(f"Generated {len(design_spaces)} design spaces for operator {operator!r}.")
+
+        # Initialize the search strategy state
+        ctx.pre_tuning(
+            max_trials=batch,               # or something larger if you want more than `batch`
+            num_trials_per_iter=batch,      # or 64, etc.
+            design_spaces=design_spaces,
+            # database=None, cost_model=None -> TVM will create MemoryDatabase + RandomModel
+        )
+        print(f"Initialized tuning context for operator {operator!r}.")
+
+        measure_candidates: list[ms.MeasureCandidate] = []
+        while len(measure_candidates) < batch:
+            cands = ctx.generate_measure_candidates()
+            if not cands:  # search finished
+                break
+            print(f"Generated {len(cands)} new measure candidates for operator {operator!r}.")
+            measure_candidates.extend(cands)
+        measure_candidates = measure_candidates[:batch]
+
+        assert measure_candidates is not None
 
         samples: list[ScheduleSample] = []
         # Always include the original TIR as a baseline sample
@@ -68,15 +95,16 @@ class MetaScheduleSampler(ScheduleSampler):
             raise RuntimeError(f"No design spaces generated for operator {operator!r}")
 
         scheduled_count = 0
-        for i in range(batch):
-            sch = design_spaces[i % len(design_spaces)]
-            trace = sch.trace.as_json()  # type: ignore[union-attr]
-            # Treat empty or missing insts as unusable schedules
-            if not (isinstance(trace, dict) and trace.get("insts")): # type: ignore
+        for cand in measure_candidates:
+            sch = cand.sch
+            trace = sch.trace.as_json() # type: ignore[union-attr]
+            scheduled_script = str(sch.mod.script())
+            trace_json = json.dumps(trace, default=tvm_default_encoder)
+
+            if scheduled_script == original_tir:
+                print(f"Skipping empty trace for operator {operator!r}.")
                 continue
-            scheduled_script, trace_json = str(sch.mod.script()), json.dumps(trace, default=tvm_default_encoder)
-            if not scheduled_script or not trace_json:
-                continue
+
             scheduled_count += 1
             samples.append(
                 ScheduleSample(
@@ -89,6 +117,7 @@ class MetaScheduleSampler(ScheduleSampler):
                     workload_key=workload_key,
                 )
             )
+
         if scheduled_count == 0:
             raise RuntimeError(
                 f"Design spaces for operator {operator!r} on target {self.target} produced only empty traces."
@@ -181,10 +210,11 @@ def measure_schedules(
     tvm_target = tvm.target.Target(target)
     exec_device = device or tvm.device(str(tvm_target.kind.name), 0)  # type: ignore[union-attr]
     for sample in schedules:
-        mod_src = sample.original_tir
-        mod = from_source(mod_src)
-        if sample.schedule_json and sample.original_tir:
-            mod = apply_trace_to_module(mod, sample.schedule_json)
+        # mod_src = sample.original_tir
+        # mod = from_source(mod_src)
+        # if sample.schedule_json and sample.original_tir:
+        #     mod = apply_trace_to_module(mod, sample.schedule_json)
+        mod = from_source(sample.scheduled_tir)
         built = tir.build(mod, target=tvm_target)
         inputs = input_generator(sample, exec_device)  # type: ignore
         if runner:
