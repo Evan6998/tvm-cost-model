@@ -98,10 +98,10 @@ class DatasetBuilder:
         """Collect measurement records for the requested operator."""
 
         measurements: List[MeasurementRecord] = []
-        total = batches * batch_size
-        with tqdm(total=total, desc=f"Collecting {operator}", unit="sched") as pbar:
-            for _ in range(batches):
-                for sample in self._sampler.sample(operator, batch=batch_size):
+        for _ in range(batches):
+            samples = self._sampler.sample(operator, batch_size)
+            with tqdm(total=batch_size, desc=f"Evaluating {operator}", unit="sched") as pbar:
+                for sample in samples:
                     runtime_ms = self._evaluator.evaluate(sample, hardware_id)
                     measurements.append(
                         MeasurementRecord(

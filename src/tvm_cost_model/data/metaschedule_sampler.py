@@ -54,10 +54,11 @@ class MetaScheduleSampler(ScheduleSampler):
             num_threads=8,
             search_strategy="evolutionary",
         )
-
+        print("Generating design spaces...")
         design_spaces = ctx.generate_design_space()
         print(f"Generated {len(design_spaces)} design spaces for operator {operator!r}.")
 
+        print("Initializing tuning context...")
         # Initialize the search strategy state
         ctx.pre_tuning(
             max_trials=batch,               # or something larger if you want more than `batch`
@@ -67,6 +68,7 @@ class MetaScheduleSampler(ScheduleSampler):
         )
         print(f"Initialized tuning context for operator {operator!r}.")
 
+        print("Generating measure candidates...")
         measure_candidates: list[ms.MeasureCandidate] = []
         while len(measure_candidates) < batch:
             cands = ctx.generate_measure_candidates()
