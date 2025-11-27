@@ -70,12 +70,20 @@ class MetaScheduleSampler(ScheduleSampler):
 
         print("Generating measure candidates...")
         measure_candidates: list[ms.MeasureCandidate] = []
+        seen_scripts: set[str] = set()
         while len(measure_candidates) < batch:
             cands = ctx.generate_measure_candidates()
             if not cands:  # search finished
                 break
             print(f"Generated {len(cands)} new measure candidates for operator {operator!r}.")
-            measure_candidates.extend(cands)
+            for cand in cands:
+                script = str(cand.sch.mod.script())
+                if script in seen_scripts:
+                    continue
+                seen_scripts.add(script)
+                measure_candidates.append(cand)
+                if len(measure_candidates) >= batch:
+                    break
         measure_candidates = measure_candidates[:batch]
 
         assert measure_candidates is not None
