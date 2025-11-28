@@ -1,34 +1,56 @@
 # TVM Low-Level Kernel Cost Model
 
-This repository contains scaffolding for a transferable, invariant, and explainable GPU kernel cost model that integrates with TVM MetaSchedule.
+Transferable, invariant, and explainable GPU kernel cost model research scaffold that plugs into TVM MetaSchedule. The code builds graph representations from TIR, mines ranking pairs, and trains lightweight ranking heads to order schedules.
 
-## Layout
-- `Project Proposal.md`: detailed research proposal and goals.
-- `plan.md`: rolling status tracker.
-- `src/tvm_cost_model/`: Python package with modules for data collection, feature extraction, modeling, training, integration, and utilities.
-- `configs/`: experiment and dataset configuration files.
-- `scripts/`: executable entry points for dataset generation, training, and deployment.
-- `tests/`: placeholder tests.
-- `notebooks/`: exploration workspace (empty placeholder).
+## Current Status
+- Dataset builder produces Parquet measurement shards from MetaSchedule workloads (vecadd, gemm, bmm, conv2d, depthwise, layernorm, softmax) with hardware metadata and shape overrides.
+- Graph extraction and encoding paths are online (`TVMGraphBuilder`, `GraphEncoder`, ranking dataset builders); coverage is expanding to more loop/thread attributes.
+- Ranking-first modeling flow exists with a baseline Node-MLP ranker and encoded pair sampling; R-GAT bring-up is next.
+- Near-term work: broaden workload/shape sweeps, add hard-negative sampling for schedules, and run measurements on real Ampere/Ada GPUs (see `plan.md`).
 
-## Getting Started
-1. Create and activate the virtual environment (already bootstrapped as `.venv`).
-2. Install the package in editable mode with dev dependencies:
+## Repository Layout
+- `src/tvm_cost_model/features/graph_builder.py`: base graph and node/edge data structures.
+- `src/tvm_cost_model/features/tvm_graph_builder.py`: TVM-backed TIR visitor extracting loop/buffer graphs and flop/byte stats.
+- `src/tvm_cost_model/features/graph_encoder.py`: stable vocab + dense feature encoding for program graphs.
+- `scripts/bootstrap_dataset.py`: bootstrap measurement datasets from built-in workloads; exports Parquet.
+- `scripts/sweep_workloads.py`: multi-workload sweep driver with shape overrides and shard merging.
+- `scripts/train_cost_model.py`: entry point for the ranking baseline.
+- `configs/`: dataset/model configuration examples.
+- `tests/`: sanity tests for feature extraction (expand as functionality grows).
+- `Project Proposal.md`, `plan.md`: research plan and rolling status tracker.
+
+## Setup
+1. **Prereqs:** Python 3.10+, PyTorch 2.3+, PyArrow 20.0. Install a TVM Python wheel separately (e.g., `pip install --pre -f https://mlc.ai/wheels mlc-ai-nightly-cpu`) or build TVM from source with TIR/MetaSchedule enabled.
+2. **Create env & install:**
    ```bash
+   python -m venv .venv
    source .venv/bin/activate
-
-   # pick the one fits your env:
-   python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu128
-   # python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu130
-   # python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cpu mlc-ai-nightly-cpu
-
+   python -m pip install --upgrade pip
    pip install -e .[dev]
    ```
-3. Run stub workflows:
-   ```bash
-   python scripts/bootstrap_dataset.py
-   python scripts/train_cost_model.py
-   ```
+3. **(Optional) Verify TVM import:** `python - <<'PY'\nimport tvm\nprint(tvm.__version__)\nPY`
 
-## Next Steps
-Implementation tasks are tracked in `plan.md` and mirrored in the proposal milestones. Flesh out each module with the actual TVM MetaSchedule integrations, data export logic, and learning pipeline.
+## Quickstart
+- Bootstrap a small dataset (writes Parquet under `artifacts/` by default):
+  ```bash
+  python scripts/bootstrap_dataset.py --workloads vecadd gemm --target llvm -o artifacts/vecadd_gemm
+  ```
+- Sweep multiple workloads/shapes:
+  ```bash
+  python scripts/sweep_workloads.py --workloads conv2d depthwise --target cuda -o artifacts/conv_sweep
+  ```
+- Train the baseline ranker on encoded pairs:
+  ```bash
+  python scripts/train_cost_model.py --config configs/sample_ranker.yaml
+  ```
+
+## Testing
+- Run the focused feature tests (requires TVM available in the environment):
+  ```bash
+  pytest tests/test_tvm_graph_builder.py
+  ```
+
+## Contributing Notes
+- Keep feature extraction deterministic across sessions; update `GraphEncoder` vocab only via controlled additions.
+- Prefer extending config files under `configs/` for new workloads/targets rather than hard-coding paths in scripts.
+- Track roadmap and open questions in `plan.md`; major scope shifts should also be reflected in `Project Proposal.md`.
