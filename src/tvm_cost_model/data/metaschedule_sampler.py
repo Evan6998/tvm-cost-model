@@ -194,7 +194,7 @@ def generate_inputs_from_workload(
     for shape_spec in sample.workload_shape.values():
         shape = _normalize_shape(shape_spec)
         data = np.ones(shape, dtype=dtype)
-        arrays.append(tvm.runtime.tensor(data, device=device))  # type: ignore
+        arrays.append(tvm.nd.array(data, device=device))  # type: ignore
     return arrays
 
 
@@ -225,7 +225,7 @@ def measure_schedules(
         # if sample.schedule_json and sample.original_tir:
         #     mod = apply_trace_to_module(mod, sample.schedule_json)
         mod = from_source(sample.scheduled_tir)
-        built = tir.build(mod, target=tvm_target)
+        built = tvm.build(mod, target=tvm_target)
         inputs = input_generator(sample, exec_device)  # type: ignore
         if runner:
             result_ms = runner(built, inputs, exec_device)  # type: ignore
