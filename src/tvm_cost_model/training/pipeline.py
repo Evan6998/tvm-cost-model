@@ -82,7 +82,7 @@ class TrainingPipeline:
             if better_enc is None or worse_enc is None:
                 continue
             encoded_pairs.append(
-                EncodedPair(better=better_enc, worse=worse_enc, difficulty=pair.difficulty)
+                EncodedPair(better=better_enc, worse=worse_enc, difficulty=pair.difficulty.name)
             )
         if not encoded_pairs:
             return 0
