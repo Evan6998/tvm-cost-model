@@ -75,11 +75,9 @@ class GraphGNNRanker(nn.Module):
         num_node_types: int = 16,
         num_edge_types: int = 4,
         dropout: float = 0.1,
-        normalize_inputs: bool = False,
     ) -> None:
         super().__init__()  # type: ignore
         self.hidden_dim = hidden_dim
-        self.normalize_inputs = normalize_inputs
 
         # Node encoder.
         self.node_proj = nn.Linear(feature_dim, hidden_dim)
@@ -129,12 +127,6 @@ class GraphGNNRanker(nn.Module):
         )
         if edge_types.numel() > 0 and int(torch.max(edge_types)) >= len(self.gnn_layers[0].rel_linears):  # type: ignore
             raise ValueError("Edge type ID exceeds configured capacity for the GNN.")
-
-        # Feature standardization per graph/workload to stabilize ranges.
-        if self.normalize_inputs:
-            mean = node_feats.mean(dim=0, keepdim=True)
-            std = node_feats.std(dim=0, keepdim=True, unbiased=False)
-            node_feats = (node_feats - mean) / (std + 1e-6)
 
         # Node encoder: feature projection + type embedding.
         h = self.node_proj(node_feats) + self.node_type_emb(type_ids)

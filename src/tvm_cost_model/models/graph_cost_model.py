@@ -83,6 +83,7 @@ class GraphCostModel:
         batch_size: int = 32,
         val_split: float = 0.2,
         show_progress: bool = True,
+        stage_name: str | None = None,
     ) -> float:
         """Train on encoded ranking pairs using a margin ranking loss.
 
@@ -136,8 +137,9 @@ class GraphCostModel:
             train_acc = (train_correct / train_count) if train_count else 0.0
             val_acc = (val_correct / val_count) if val_count else 0.0
             if show_progress:
+                prefix = f"[{stage_name}] " if stage_name else ""
                 print(
-                    f"Epoch {epoch + 1}/{epochs} | train_count={train_count} | "
+                    f"{prefix}Epoch {epoch + 1}/{epochs} | train_count={train_count} | "
                     f"train_loss={train_loss / max(train_count, 1):.4f} train_acc={train_acc:.3f} | "
                     f"val_loss={(val_loss / max(val_count, 1)):.4f} val_acc={val_acc:.3f}"
                 )
