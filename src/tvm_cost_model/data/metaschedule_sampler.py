@@ -58,27 +58,47 @@ class MetaScheduleSampler(ScheduleSampler):
                 # Create a new schedule for each sample
                 sch = tir.Schedule(mod, debug_mask="all")
                 
-                # Apply some basic GPU transformations
-                blocks = sch.get_block("gemm")
-                if blocks:
-                    loops = sch.get_loops(blocks)
-                    if len(loops) >= 3:
-                        # Simple tiling and binding for GPU
-                        i_loop, j_loop, k_loop = loops[0], loops[1], loops[2]
-                        
-                        # Different tile sizes for variation
-                        tile_i = [16, 32, 64, 128][i % 4]
-                        tile_j = [16, 32, 64, 128][(i+1) % 4]
-                        tile_k = [8, 16, 32, 64][(i+2) % 4]
-                        
-                        io, ii = sch.split(i_loop, factors=[None, tile_i])
-                        jo, ji = sch.split(j_loop, factors=[None, tile_j])
-                        ko, ki = sch.split(k_loop, factors=[None, tile_k])
-                        
-                        sch.reorder(io, jo, ko, ii, ji, ki)
-                        sch.bind(io, "blockIdx.x")
-                        sch.bind(jo, "blockIdx.y")
-                        sch.bind(ii, "threadIdx.x")
+                # Get all compute blocks and find the main one
+                blocks = sch.get_sref_blocks()
+                target_block = None
+                for block in blocks:
+                    block_name = sch.get(block).name_hint
+                    if block_name == operator or block_name in [operator, "root"]:
+                        target_block = block
+                        break
+                
+                if target_block is None and blocks:
+                    # Use the first non-root block
+                    target_block = blocks[0]
+                
+                if target_block:
+                    loops = sch.get_loops(target_block)
+                    if len(loops) >= 1:
+                        # Apply GPU transformations based on number of loops
+                        if len(loops) == 1:
+                            # 1D workload (vecadd)
+                            loop = loops[0]
+                            tile_size = [32, 64, 128, 256][i % 4]
+                            outer, inner = sch.split(loop, factors=[None, tile_size])
+                            sch.bind(outer, "blockIdx.x")
+                            sch.bind(inner, "threadIdx.x")
+                        elif len(loops) >= 2:
+                            # 2D+ workload (gemm, bmm, conv2d, etc.)
+                            # Tile and bind first 2-3 spatial dimensions
+                            tile_i = [16, 32, 64, 128][i % 4]
+                            tile_j = [16, 32, 64, 128][(i+1) % 4]
+                            
+                            io, ii = sch.split(loops[0], factors=[None, tile_i])
+                            jo, ji = sch.split(loops[1], factors=[None, tile_j])
+                            
+                            sch.bind(io, "blockIdx.x")
+                            sch.bind(jo, "blockIdx.y")
+                            sch.bind(ii, "threadIdx.x")
+                            
+                            if len(loops) >= 3:
+                                # For reduction dimensions, just tile
+                                tile_k = [8, 16, 32][i % 3]
+                                sch.split(loops[2], factors=[None, tile_k])
                         
                         script = str(sch.mod.script())
                         if script not in seen_scripts:
