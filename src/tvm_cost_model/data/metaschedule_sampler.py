@@ -58,18 +58,20 @@ class MetaScheduleSampler(ScheduleSampler):
                 # Create a new schedule for each sample
                 sch = tir.Schedule(mod, debug_mask="all")
                 
-                # Get all compute blocks and find the main one
-                blocks = sch.get_sref_blocks()
+                # Get the main compute block by name (TVM 0.9.0 API)
                 target_block = None
-                for block in blocks:
-                    block_name = sch.get(block).name_hint
-                    if block_name == operator or block_name in [operator, "root"]:
-                        target_block = block
-                        break
-                
-                if target_block is None and blocks:
-                    # Use the first non-root block
-                    target_block = blocks[0]
+                try:
+                    # Try to get block by operator name
+                    target_block = sch.get_block(operator)
+                except:
+                    # If that fails, try common block names or get root
+                    for block_name in [operator, "vecadd", "gemm", "bmm", "conv2d_nchw", 
+                                       "depthwise_conv2d", "layernorm", "softmax"]:
+                        try:
+                            target_block = sch.get_block(block_name)
+                            break
+                        except:
+                            continue
                 
                 if target_block:
                     loops = sch.get_loops(target_block)
