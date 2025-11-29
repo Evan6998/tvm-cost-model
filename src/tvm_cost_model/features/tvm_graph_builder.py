@@ -69,12 +69,13 @@ class _TIRVisitor:
     def visit(self, stmt: tir.Stmt) -> None:
         self._visit_stmt(stmt)
         if self.unrecognized_stmts or self.unrecognized_exprs:
-            print(
-                "Unrecognized TIR nodes | stmts:",
-                sorted(self.unrecognized_stmts),
-                "| exprs:",
-                sorted(self.unrecognized_exprs),
-            )
+            ...
+            # print(
+            #     "Unrecognized TIR nodes | stmts:",
+            #     sorted(self.unrecognized_stmts),
+            #     "| exprs:",
+            #     sorted(self.unrecognized_exprs),
+            # )
 
     def _visit_stmt(self, stmt: tir.Stmt) -> None:
         if isinstance(stmt, tir.For):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Sequence
 
 from tvm_cost_model.features.graph_builder import ProgramGraph
 
@@ -71,3 +72,13 @@ class GraphEncoder:
         sorted_names = sorted(feature_names)
         self._feature_names = sorted_names
         return sorted_names
+
+    def prime_feature_names(self, graphs: Sequence[ProgramGraph]) -> list[str]:
+        """Pre-compute the feature union across graphs to keep encodings aligned."""
+
+        feature_names = set(self._feature_names)
+        for graph in graphs:
+            for node in graph.nodes:
+                feature_names.update(node.attrs.keys())
+        self._feature_names = sorted(feature_names)
+        return self._feature_names
