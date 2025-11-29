@@ -4,10 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import random
+from enum import Enum
+
 from typing import Iterable, List, Sequence
 
 from tvm_cost_model.data.dataset_builder import MeasurementRecord
 
+
+class Difficulty(Enum):
+    EASY = 1
+    MEDIUM = 2
+    HARD = 3
 
 @dataclass
 class RankedPair:
@@ -15,13 +22,13 @@ class RankedPair:
 
     better: MeasurementRecord
     worse: MeasurementRecord
-    difficulty: str  # "easy" or "hard"
+    difficulty: Difficulty
 
 
 def make_ranking_pairs(
     measurements: Sequence[MeasurementRecord],
-    easy_gap: float = 10.0,
-    hard_gap: float = 2.0,
+    easy_gap: float = 0.5,
+    hard_gap: float = 0.1,
 ) -> List[RankedPair]:
     """Create ranking pairs from measurements.
 
@@ -48,9 +55,10 @@ def make_ranking_pairs(
 def sample_ranking_pairs(
     measurements: Sequence[MeasurementRecord],
     num_pairs: int,
-    easy_gap: float = 10.0,
-    hard_gap: float = 2.0,
+    easy_gap: float = 0.3,
+    hard_gap: float = 0.1,
     seed: int | None = None,
+    max_difficulty: Difficulty | None = None,
 ) -> List[RankedPair]:
     """Randomly sample ranking pairs without enumerating all combinations."""
 
@@ -58,25 +66,24 @@ def sample_ranking_pairs(
         return []
     rng = random.Random(seed)
     pairs: List[RankedPair] = []
-    attempts = 0
-    max_attempts = num_pairs * 5
-    while len(pairs) < num_pairs and attempts < max_attempts:
-        attempts += 1
+    while len(pairs) < num_pairs:
         a, b = rng.sample(measurements, 2)
         if a.runtime_ms == b.runtime_ms:
             continue
         better, worse = (a, b) if a.runtime_ms < b.runtime_ms else (b, a)
         difficulty = _classify_delta(worse.runtime_ms - better.runtime_ms, easy_gap, hard_gap)
+        if max_difficulty is not None and difficulty.value > max_difficulty.value:
+            continue
         pairs.append(RankedPair(better=better, worse=worse, difficulty=difficulty))
     return pairs
 
 
-def _classify_delta(delta: float, easy_gap: float, hard_gap: float) -> str:
+def _classify_delta(delta: float, easy_gap: float, hard_gap: float) -> Difficulty:
     if delta >= easy_gap:
-        return "easy"
+        return Difficulty.EASY
     if delta <= hard_gap:
-        return "hard"
-    return "medium"
+        return Difficulty.HARD
+    return Difficulty.MEDIUM
 
 
 def _subsequent_elements(seq: Sequence[MeasurementRecord], start: int) -> Iterable[MeasurementRecord]:

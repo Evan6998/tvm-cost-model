@@ -11,7 +11,7 @@ import torch.nn as nn
 
 from tvm_cost_model.features.graph_builder import ProgramGraph
 from tvm_cost_model.features.graph_encoder import GraphEncoder
-from tvm_cost_model.models.node_mlp_ranker import NodeMLPRanker, RankerOutput
+from tvm_cost_model.models.graph_gnn_ranker import GraphGNNRanker, RankerOutput
 from tvm_cost_model.training.ranking_dataset import EncodedPair
 
 
@@ -37,10 +37,11 @@ class GraphCostModel:
         self.margin = margin
         self.weight_decay = weight_decay
         self.hidden_dim = hidden_dim
-        self._model: NodeMLPRanker | None = None
+        self._model: GraphGNNRanker | None = None
         self._optimizer: torch.optim.Optimizer | None = None
         self._feature_dim: int | None = None
         self._node_type_capacity: int = 0
+        self._edge_type_capacity: int = 0
         self._margin_loss = nn.MarginRankingLoss(margin=margin)
 
     def predict(self, graph: ProgramGraph) -> Prediction:
@@ -148,22 +149,27 @@ class GraphCostModel:
         """(Re)initialize the underlying ranker + optimizer if needed."""
 
         num_node_types = max(self.encoder.node_type_to_id.values(), default=-1) + 1
+        num_edge_types = max(self.encoder.edge_type_to_id.values(), default=-1) + 1
         capacity = max(num_node_types, 8)
+        edge_capacity = max(num_edge_types, 4)
         if (
             self._model is None
             or self._feature_dim != feature_dim
             or capacity > self._node_type_capacity
+            or edge_capacity > self._edge_type_capacity
         ):
-            self._model = NodeMLPRanker(
+            self._model = GraphGNNRanker(
                 feature_dim=feature_dim,
                 hidden_dim=self.hidden_dim,
                 num_node_types=capacity,
+                num_edge_types=edge_capacity,
             )
             self._optimizer = torch.optim.AdamW(
                 self._model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
             )
             self._feature_dim = feature_dim
             self._node_type_capacity = capacity
+            self._edge_type_capacity = edge_capacity
 
     def _evaluate_pairs(self, pairs: Sequence[EncodedPair]) -> tuple[float, int, int]:
         if not pairs or self._model is None:
