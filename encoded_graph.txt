@@ -1,0 +1,255 @@
+ProgramGraph
+========================================================================
+ProgramGraph(nodes=20, edges=69, edge_types=[accesses=4, iterates=15, loop_accesses=36, loop_child=14])
+
+Nodes (total=20):
+------------------------------------------------------------------------
+[0] loop:i_0_j_0_fused
+    depth           : 0
+    extent          : 8
+    is_parallel     : 1
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[1] loop:i_1
+    depth           : 1
+    extent          : 8
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[2] loop:j_1
+    depth           : 2
+    extent          : 8
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[3] loop:i_2_init
+    depth           : 3
+    extent          : 16
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[4] loop:j_2_init
+    depth           : 4
+    extent          : 8
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[5] loop:i_3_init
+    depth           : 5
+    extent          : 1
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[6] loop:j_3_init
+    depth           : 6
+    extent          : 1
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[7] loop:k_0
+    depth           : 3
+    extent          : 64
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[8] loop:i_2
+    depth           : 4
+    extent          : 16
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[9] loop:j_2
+    depth           : 5
+    extent          : 8
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[10] loop:k_1
+    depth           : 6
+    extent          : 4
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[11] loop:i_3
+    depth           : 7
+    extent          : 1
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[12] loop:j_3
+    depth           : 8
+    extent          : 1
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[13] loop:ax0
+    depth           : 1
+    extent          : 128
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[14] loop:ax1
+    depth           : 2
+    extent          : 64
+    is_parallel     : 0
+    is_reduction    : 0
+    is_thread_bound : 0
+    is_unrolled     : 0
+    is_vectorized   : 0
+
+[15] buffer:A
+    elem_bytes      : 4
+    name_len        : 1
+    read_count      : 1
+    scope_code      : 0
+    total_bytes     : 262144
+    write_count     : 0
+
+[16] buffer:B
+    elem_bytes      : 4
+    name_len        : 1
+    read_count      : 1
+    scope_code      : 0
+    total_bytes     : 262144
+    write_count     : 0
+
+[17] buffer:C
+    elem_bytes      : 4
+    name_len        : 1
+    read_count      : 0
+    scope_code      : 0
+    total_bytes     : 262144
+    write_count     : 1
+
+[18] buffer:C_global
+    elem_bytes      : 4
+    name_len        : 8
+    read_count      : 2
+    scope_code      : 0
+    total_bytes     : 262144
+    write_count     : 2
+
+[19] compute
+    arith_intensity : 0.07142857142857142
+    buffer_count    : 4
+    global_bytes    : 28
+    local_bytes     : 0
+    loop_depth      : 15
+    other_bytes     : 0
+    shared_bytes    : 0
+    total_extent    : 336
+    total_flops     : 2
+
+Edges (total=69):
+------------------------------------------------------------------------
+[0]  19 ->   0  (iterates)  # compute -> loop:i_0_j_0_fused
+[1]  19 ->   1  (iterates)  # compute -> loop:i_1
+[2]  19 ->   2  (iterates)  # compute -> loop:j_1
+[3]  19 ->   3  (iterates)  # compute -> loop:i_2_init
+[4]  19 ->   4  (iterates)  # compute -> loop:j_2_init
+[5]  19 ->   5  (iterates)  # compute -> loop:i_3_init
+[6]  19 ->   6  (iterates)  # compute -> loop:j_3_init
+[7]  19 ->   7  (iterates)  # compute -> loop:k_0
+[8]  19 ->   8  (iterates)  # compute -> loop:i_2
+[9]  19 ->   9  (iterates)  # compute -> loop:j_2
+[10]  19 ->  10  (iterates)  # compute -> loop:k_1
+[11]  19 ->  11  (iterates)  # compute -> loop:i_3
+[12]  19 ->  12  (iterates)  # compute -> loop:j_3
+[13]  19 ->  13  (iterates)  # compute -> loop:ax0
+[14]  19 ->  14  (iterates)  # compute -> loop:ax1
+[15]  19 ->  15  (accesses)  # compute -> buffer:A
+[16]  19 ->  16  (accesses)  # compute -> buffer:B
+[17]  19 ->  17  (accesses)  # compute -> buffer:C
+[18]  19 ->  18  (accesses)  # compute -> buffer:C_global
+[19]   0 ->   1  (loop_child)  # loop:i_0_j_0_fused -> loop:i_1
+[20]   1 ->   2  (loop_child)  # loop:i_1 -> loop:j_1
+[21]   2 ->   3  (loop_child)  # loop:j_1 -> loop:i_2_init
+[22]   3 ->   4  (loop_child)  # loop:i_2_init -> loop:j_2_init
+[23]   4 ->   5  (loop_child)  # loop:j_2_init -> loop:i_3_init
+[24]   5 ->   6  (loop_child)  # loop:i_3_init -> loop:j_3_init
+[25]   2 ->   7  (loop_child)  # loop:j_1 -> loop:k_0
+[26]   7 ->   8  (loop_child)  # loop:k_0 -> loop:i_2
+[27]   8 ->   9  (loop_child)  # loop:i_2 -> loop:j_2
+[28]   9 ->  10  (loop_child)  # loop:j_2 -> loop:k_1
+[29]  10 ->  11  (loop_child)  # loop:k_1 -> loop:i_3
+[30]  11 ->  12  (loop_child)  # loop:i_3 -> loop:j_3
+[31]   0 ->  13  (loop_child)  # loop:i_0_j_0_fused -> loop:ax0
+[32]  13 ->  14  (loop_child)  # loop:ax0 -> loop:ax1
+[33]   3 ->  18  (loop_accesses)  # loop:i_2_init -> buffer:C_global
+[34]   1 ->  15  (loop_accesses)  # loop:i_1 -> buffer:A
+[35]   1 ->  16  (loop_accesses)  # loop:i_1 -> buffer:B
+[36]  10 ->  15  (loop_accesses)  # loop:k_1 -> buffer:A
+[37]  14 ->  18  (loop_accesses)  # loop:ax1 -> buffer:C_global
+[38]   5 ->  18  (loop_accesses)  # loop:i_3_init -> buffer:C_global
+[39]  12 ->  15  (loop_accesses)  # loop:j_3 -> buffer:A
+[40]  12 ->  16  (loop_accesses)  # loop:j_3 -> buffer:B
+[41]   7 ->  18  (loop_accesses)  # loop:k_0 -> buffer:C_global
+[42]  10 ->  16  (loop_accesses)  # loop:k_1 -> buffer:B
+[43]   9 ->  18  (loop_accesses)  # loop:j_2 -> buffer:C_global
+[44]   7 ->  15  (loop_accesses)  # loop:k_0 -> buffer:A
+[45]   7 ->  16  (loop_accesses)  # loop:k_0 -> buffer:B
+[46]   0 ->  17  (loop_accesses)  # loop:i_0_j_0_fused -> buffer:C
+[47]  11 ->  18  (loop_accesses)  # loop:i_3 -> buffer:C_global
+[48]   0 ->  18  (loop_accesses)  # loop:i_0_j_0_fused -> buffer:C_global
+[49]   2 ->  18  (loop_accesses)  # loop:j_1 -> buffer:C_global
+[50]  13 ->  17  (loop_accesses)  # loop:ax0 -> buffer:C
+[51]  13 ->  18  (loop_accesses)  # loop:ax0 -> buffer:C_global
+[52]   6 ->  18  (loop_accesses)  # loop:j_3_init -> buffer:C_global
+[53]   9 ->  15  (loop_accesses)  # loop:j_2 -> buffer:A
+[54]   9 ->  16  (loop_accesses)  # loop:j_2 -> buffer:B
+[55]   0 ->  15  (loop_accesses)  # loop:i_0_j_0_fused -> buffer:A
+[56]  11 ->  15  (loop_accesses)  # loop:i_3 -> buffer:A
+[57]   0 ->  16  (loop_accesses)  # loop:i_0_j_0_fused -> buffer:B
+[58]  11 ->  16  (loop_accesses)  # loop:i_3 -> buffer:B
+[59]   4 ->  18  (loop_accesses)  # loop:j_2_init -> buffer:C_global
+[60]   2 ->  15  (loop_accesses)  # loop:j_1 -> buffer:A
+[61]   2 ->  16  (loop_accesses)  # loop:j_1 -> buffer:B
+[62]   8 ->  18  (loop_accesses)  # loop:i_2 -> buffer:C_global
+[63]  10 ->  18  (loop_accesses)  # loop:k_1 -> buffer:C_global
+[64]   1 ->  18  (loop_accesses)  # loop:i_1 -> buffer:C_global
+[65]   8 ->  15  (loop_accesses)  # loop:i_2 -> buffer:A
+[66]   8 ->  16  (loop_accesses)  # loop:i_2 -> buffer:B
+[67]  12 ->  18  (loop_accesses)  # loop:j_3 -> buffer:C_global
+[68]  14 ->  17  (loop_accesses)  # loop:ax1 -> buffer:C

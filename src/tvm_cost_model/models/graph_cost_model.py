@@ -28,7 +28,7 @@ class GraphCostModel:
         self,
         learning_rate: float = 1e-3,
         margin: float = 0.1,
-        weight_decay: float = 0.0,
+        weight_decay: float = 1e-4,
         hidden_dim: int = 64,
     ) -> None:
         self._is_trained = False
@@ -136,7 +136,7 @@ class GraphCostModel:
             val_acc = (val_correct / val_count) if val_count else 0.0
             if show_progress:
                 print(
-                    f"Epoch {epoch + 1}/{epochs} | "
+                    f"Epoch {epoch + 1}/{epochs} | train_count={train_count} | "
                     f"train_loss={train_loss / max(train_count, 1):.4f} train_acc={train_acc:.3f} | "
                     f"val_loss={(val_loss / max(val_count, 1)):.4f} val_acc={val_acc:.3f}"
                 )
@@ -159,7 +159,7 @@ class GraphCostModel:
                 hidden_dim=self.hidden_dim,
                 num_node_types=capacity,
             )
-            self._optimizer = torch.optim.Adam(
+            self._optimizer = torch.optim.AdamW(
                 self._model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
             )
             self._feature_dim = feature_dim
