@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import random
 from typing import Iterable, List, Sequence
 
 from tvm_cost_model.data.dataset_builder import MeasurementRecord
@@ -41,6 +42,32 @@ def make_ranking_pairs(
                 continue
             difficulty = _classify_delta(delta, easy_gap, hard_gap)
             pairs.append(RankedPair(better=better, worse=worse, difficulty=difficulty))
+    return pairs
+
+
+def sample_ranking_pairs(
+    measurements: Sequence[MeasurementRecord],
+    num_pairs: int,
+    easy_gap: float = 10.0,
+    hard_gap: float = 2.0,
+    seed: int | None = None,
+) -> List[RankedPair]:
+    """Randomly sample ranking pairs without enumerating all combinations."""
+
+    if num_pairs <= 0 or len(measurements) < 2:
+        return []
+    rng = random.Random(seed)
+    pairs: List[RankedPair] = []
+    attempts = 0
+    max_attempts = num_pairs * 5
+    while len(pairs) < num_pairs and attempts < max_attempts:
+        attempts += 1
+        a, b = rng.sample(measurements, 2)
+        if a.runtime_ms == b.runtime_ms:
+            continue
+        better, worse = (a, b) if a.runtime_ms < b.runtime_ms else (b, a)
+        difficulty = _classify_delta(worse.runtime_ms - better.runtime_ms, easy_gap, hard_gap)
+        pairs.append(RankedPair(better=better, worse=worse, difficulty=difficulty))
     return pairs
 
 

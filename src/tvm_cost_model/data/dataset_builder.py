@@ -131,6 +131,34 @@ class DatasetBuilder:
         return output
 
 
+def load_measurement_records(path: Path) -> List[MeasurementRecord]:
+    """Load MeasurementRecords from a Parquet file."""
+
+    table = pq.read_table(path) # type: ignore
+    records: List[MeasurementRecord] = []
+    for row in table.to_pylist():
+        hardware_features_raw = row.get("hardware_features")
+        hardware_features = None
+        if hardware_features_raw:
+            parsed = json.loads(hardware_features_raw)
+            hardware_features = {str(k): float(v) for k, v in parsed.items()}
+        records.append(
+            MeasurementRecord(
+                operator=row.get("operator", ""),
+                schedule_json=row.get("schedule_json", "") or "",
+                original_tir=row.get("original_tir", "") or "",
+                scheduled_tir=row.get("scheduled_tir", "") or "",
+                workload_shape=json.loads(row.get("workload_shape", "{}")),
+                runtime_ms=float(row.get("runtime_ms", 0.0) or 0.0),
+                hardware_id=row.get("hardware_id", "") or "",
+                target=row.get("target"),
+                workload_key=row.get("workload_key"),
+                hardware_features=hardware_features,
+            )
+        )
+    return records
+
+
 class SyntheticScheduleSampler:
     """Produces pseudo-random schedules to unblock tooling work."""
     def __init__(self, seed: int = 0) -> None:

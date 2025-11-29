@@ -41,8 +41,7 @@ class NodeMLPRanker(nn.Module):
 
     def forward(self, encoding: GraphEncoding) -> RankerOutput:
         if not encoding.node_features:
-            zero = torch.zeros(1)
-            return RankerOutput(score=zero, attribution=zero)
+            raise ValueError("Encoding has no node features.")
 
         node_feats = _to_tensor(encoding.node_features)
         type_ids = _to_tensor(encoding.node_types, dtype=torch.long)

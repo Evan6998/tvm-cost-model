@@ -56,6 +56,8 @@ class MetaScheduleSampler(ScheduleSampler):
         )
         print("Generating design spaces...")
         design_spaces = ctx.generate_design_space()
+        if not design_spaces:
+            raise RuntimeError(f"No design spaces generated for operator {operator!r}")
         print(f"Generated {len(design_spaces)} design spaces for operator {operator!r}.")
 
         print("Initializing tuning context...")
@@ -74,6 +76,7 @@ class MetaScheduleSampler(ScheduleSampler):
         while len(measure_candidates) < batch:
             cands = ctx.generate_measure_candidates()
             if not cands:  # search finished
+                print(f"No more measure candidates generated for operator {operator!r}.")
                 break
             print(f"Generated {len(cands)} new measure candidates for operator {operator!r}.")
             for cand in cands:
@@ -84,26 +87,24 @@ class MetaScheduleSampler(ScheduleSampler):
                 measure_candidates.append(cand)
                 if len(measure_candidates) >= batch:
                     break
+        print(f"Generated {len(measure_candidates)} total measure candidates for operator {operator!r}.")
         measure_candidates = measure_candidates[:batch]
 
         assert measure_candidates is not None
 
         samples: list[ScheduleSample] = []
         # Always include the original TIR as a baseline sample
-        samples.append(
-            ScheduleSample(
-                operator=operator,
-                schedule_json="",
-                original_tir=original_tir,
-                scheduled_tir=original_tir,
-                workload_shape=self._normalize_workload_shape(self._workload_shape_fn(operator)),
-                target=str(self.target),
-                workload_key=workload_key,
-            )
-        )
-        if not design_spaces:
-            raise RuntimeError(f"No design spaces generated for operator {operator!r}")
-
+        # samples.append(
+        #     ScheduleSample(
+        #         operator=operator,
+        #         schedule_json="",
+        #         original_tir=original_tir,
+        #         scheduled_tir=original_tir,
+        #         workload_shape=self._normalize_workload_shape(self._workload_shape_fn(operator)),
+        #         target=str(self.target),
+        #         workload_key=workload_key,
+        #     )
+        # )
         scheduled_count = 0
         for cand in measure_candidates:
             sch = cand.sch
