@@ -226,17 +226,18 @@ def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         k = shape["k"]
         tir_script = f"""
 @T.prim_func
-def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, ({m}, {k}))
-    B = T.match_buffer(b, ({k}, {n}))
-    C = T.match_buffer(c, ({m}, {n}))
+def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({{"global_symbol": "{global_symbol}", "tir.noalias": True}})
+    A = T.match_buffer(a, ({m}, {k}), "{dtype}")
+    B = T.match_buffer(b, ({k}, {n}), "{dtype}")
+    C = T.match_buffer(c, ({m}, {n}), "{dtype}")
 
     for i, j, k in T.grid({m}, {n}, {k}):
-        with T.block():
+        with T.block("gemm"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] += A[vi, vk] * B[vj, vk]
+                C[vi, vj] = T.cast(0, "{dtype}")
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 """
         workload_shape = {"A": (m, k), "B": (k, n), "C": (m, n)}
     elif op == "bmm":
