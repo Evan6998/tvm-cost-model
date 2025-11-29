@@ -43,6 +43,7 @@ class MetaScheduleSampler(ScheduleSampler):
         workload_key = str(tvm.ir.structural_hash(mod)) # type: ignore[union-attr]
 
         # Use TVM 0.9.0 API - directly sample from schedule space
+        # Note: This approach is compatible with TVM 0.9.0 and supports CUDA targets
         print(f"Generating {batch} schedule candidates for operator {operator!r}...")
         
         # Create schedule and apply basic transformations
@@ -90,10 +91,13 @@ class MetaScheduleSampler(ScheduleSampler):
                 print(f"Warning: Failed to create schedule variant {i}: {e}")
                 continue
         
-        print(f"Generated {len(measure_candidates)} unique measure candidates for operator {operator!r}.")
+        if not measure_candidates:
+            print(f"No more measure candidates generated for operator {operator!r}.")
+        print(f"Generated {len(measure_candidates)} total measure candidates for operator {operator!r}.")
 
         samples: list[ScheduleSample] = []
-        # Always include the original TIR as a baseline sample
+        # Include the original TIR as a baseline sample
+        # Note: For CUDA targets, this will be skipped during evaluation (see evaluate() method)
         samples.append(
             ScheduleSample(
                 operator=operator,
@@ -108,7 +112,6 @@ class MetaScheduleSampler(ScheduleSampler):
         
         if not measure_candidates:
             raise RuntimeError(f"No schedule candidates generated for operator {operator!r}")
-
         scheduled_count = 0
         for cand in measure_candidates:
             sch = cand.sch

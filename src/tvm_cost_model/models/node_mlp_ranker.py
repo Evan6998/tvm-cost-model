@@ -25,33 +25,76 @@ class RankerOutput:
 class NodeMLPRanker(nn.Module):
     """Scores graphs by aggregating node features; offers per-node attribution.
 
-    This is a stepping stone toward a full R-GAT. It embeds node types, applies a
-    small MLP to node features, aggregates via mean, and produces a scalar score.
-    Node attributions are derived from a softmax over node-level logits.
+    This version uses a small per-node MLP, layer normalization, and an
+    attention-style pooling mechanism to obtain a graph-level representation.
+    The per-node attribution is the attention weight assigned to each node.
     """
 
-    def __init__(self, feature_dim: int, hidden_dim: int = 32, num_node_types: int = 16) -> None:
-        super().__init__() # type: ignore
+    def __init__(
+        self,
+        feature_dim: int,
+        hidden_dim: int = 64,
+        num_node_types: int = 16,
+        dropout: float = 0.1,
+    ) -> None:
+        super().__init__()  # type: ignore
+
+        # Project raw node features to hidden_dim; node-type embedding is added.
+        self.node_feat_proj = nn.Linear(feature_dim, hidden_dim)
         self.node_type_emb = nn.Embedding(num_node_types, hidden_dim)
-        self.mlp = nn.Sequential(
-            nn.Linear(feature_dim + hidden_dim, hidden_dim),
+
+        # Normalization + nonlinearity on node representations.
+        self.node_norm = nn.LayerNorm(hidden_dim)
+        self.node_mlp = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+        )
+
+        # Attention-style pooling to get a single graph embedding.
+        self.attn_vector = nn.Linear(hidden_dim, 1)
+
+        # Final MLP that maps graph embedding to a scalar score.
+        self.graph_mlp = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(hidden_dim, 1),
         )
 
     def forward(self, encoding: GraphEncoding) -> RankerOutput:
         if not encoding.node_features:
-            zero = torch.zeros(1)
-            return RankerOutput(score=zero, attribution=zero)
+            raise ValueError("Encoding has no node features.")
 
+        # Shape: [num_nodes, feature_dim]
         node_feats = _to_tensor(encoding.node_features)
+        # Shape: [num_nodes]
         type_ids = _to_tensor(encoding.node_types, dtype=torch.long)
-        type_embs = self.node_type_emb(type_ids)
-        mlp_input = torch.cat([node_feats, type_embs], dim=-1)
 
-        node_logits = self.mlp(mlp_input).squeeze(-1)
-        score = node_logits.mean()
-        attribution = F.softmax(node_logits, dim=0)
+        # Initial node representation: projected features + type embedding.
+        h_feat = self.node_feat_proj(node_feats)
+        h_type = self.node_type_emb(type_ids)
+        h = h_feat + h_type
+
+        # Normalize & refine node representation.
+        h = self.node_norm(h)
+        h = self.node_mlp(h)
+
+        # Attention pooling over nodes.
+        # attn_logits: [num_nodes]
+        attn_logits = self.attn_vector(h).squeeze(-1)
+        attn_weights = F.softmax(attn_logits, dim=0)
+
+        # Graph representation is the attention-weighted sum of node embeddings.
+        graph_repr = (attn_weights.unsqueeze(-1) * h).sum(dim=0)
+
+        # Final scalar score.
+        score = self.graph_mlp(graph_repr).squeeze(-1)
+
+        # Use the attention weights as per-node attribution.
+        attribution = attn_weights
         return RankerOutput(score=score, attribution=attribution)
 
     def score_pair(self, better: GraphEncoding, worse: GraphEncoding) -> Tuple[torch.Tensor, torch.Tensor]:

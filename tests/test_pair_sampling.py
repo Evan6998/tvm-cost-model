@@ -1,5 +1,5 @@
 from tvm_cost_model.data.dataset_builder import MeasurementRecord
-from tvm_cost_model.training.pair_sampling import _classify_delta, make_ranking_pairs # type: ignore
+from tvm_cost_model.training.pair_sampling import _classify_delta, make_ranking_pairs, sample_ranking_pairs, Difficulty # type: ignore
 
 
 def _mk(measurements: list[float]):
@@ -7,9 +7,9 @@ def _mk(measurements: list[float]):
 
 
 def test_classify_delta_labels_easy_medium_hard():
-    assert _classify_delta(15.0, easy_gap=10.0, hard_gap=2.0) == "easy"
-    assert _classify_delta(1.0, easy_gap=10.0, hard_gap=2.0) == "hard"
-    assert _classify_delta(5.0, easy_gap=10.0, hard_gap=2.0) == "medium"
+    assert _classify_delta(15.0, easy_gap=10.0, hard_gap=2.0) == Difficulty.EASY
+    assert _classify_delta(1.0, easy_gap=10.0, hard_gap=2.0) == Difficulty.HARD
+    assert _classify_delta(5.0, easy_gap=10.0, hard_gap=2.0) == Difficulty.MEDIUM
 
 
 def test_make_ranking_pairs_orders_by_runtime():
@@ -20,10 +20,17 @@ def test_make_ranking_pairs_orders_by_runtime():
     # Ensure better/worse ordering is correct
     assert all(pair.better.runtime_ms < pair.worse.runtime_ms for pair in pairs)
     # Difficulty labels should include all difficulty classes
-    assert {pair.difficulty for pair in pairs} == {"hard", "easy", "medium"}
+    assert {pair.difficulty for pair in pairs} == {Difficulty.HARD, Difficulty.EASY, Difficulty.MEDIUM}
 
 
 def test_make_ranking_pairs_includes_medium_pairs():
     records = _mk([1.0, 3.0, 4.0])
     pairs = make_ranking_pairs(records, easy_gap=10.0, hard_gap=2.0)
-    assert any(pair.difficulty == "medium" for pair in pairs)
+    assert any(pair.difficulty == Difficulty.MEDIUM for pair in pairs)
+
+
+def test_sample_ranking_pairs_limits_size():
+    records = _mk([1.0, 2.0, 3.0, 4.0])
+    pairs = sample_ranking_pairs(records, num_pairs=3, easy_gap=10.0, hard_gap=2.0, seed=0)
+    assert len(pairs) == 3
+    assert all(pair.better.runtime_ms < pair.worse.runtime_ms for pair in pairs)

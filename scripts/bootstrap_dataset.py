@@ -27,16 +27,6 @@ from tvm_cost_model.data.dataset_builder import (
     SyntheticScheduleSampler,
 )
 
-DEFAULT_SHAPES: Dict[str, Dict[str, int]] = {
-    "vecadd": {"n": 1024},
-    "gemm": {"m": 128, "n": 128, "k": 128},
-    "bmm": {"batch": 8, "m": 128, "n": 128, "k": 128},
-    "conv2d_nchw": {"n": 1, "ci": 64, "co": 64, "h": 56, "w": 56, "kh": 3, "kw": 3, "stride": 1, "padding": 0},
-    "depthwise_conv2d": {"n": 1, "ci": 64, "h": 56, "w": 56, "kh": 3, "kw": 3, "stride": 1, "padding": 0},
-    "layernorm": {"n": 64, "hidden": 256},
-    "softmax": {"n": 64, "k": 256},
-}
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Bootstrap measurement data")
@@ -57,8 +47,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--shape",
         type=str,
-        default="",
-        help='JSON dict overriding default shape dims (e.g., \'{"m":128,"n":128,"k":128}\')',
+        required=True,
+        help='JSON dict for shape dims (e.g., \'{"m":128,"n":128,"k":128}\')',
     )
     parser.add_argument("--batches", type=int, default=1, help="Number of sampler batches")
     parser.add_argument("--batch-size", type=int, default=32, help="Samples per batch")
@@ -101,7 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def parse_shape_arg(shape_arg: str) -> Dict[str, int]:
     if not shape_arg:
-        return {}
+        raise ValueError("--shape argument is required")
     try:
         parsed: Dict[str, int] = json.loads(shape_arg)
     except json.JSONDecodeError as err:
@@ -148,11 +138,7 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    shape_override = parse_shape_arg(args.shape)
-    base_shape = dict(DEFAULT_SHAPES.get(args.operator, {}))
-    if args.operator == "vecadd" and "n" not in shape_override:
-        base_shape["n"] = args.vector_len
-    shape = {**base_shape, **shape_override}
+    shape = parse_shape_arg(args.shape)
 
     output_dir = Path(args.output_dir)
     if args.mode == "synthetic":
@@ -205,7 +191,7 @@ def build_builtin_module_supplier(
     """Construct simple TVMScript IRModules for common operators."""
     op = operator.lower()
     if op == "vecadd":
-        n = shape.get("n", DEFAULT_SHAPES["vecadd"]["n"])
+        n = shape["n"]
         tir_script = f"""
 @T.prim_func
 def main(a: T.handle, b: T.handle, c: T.handle) -> None:

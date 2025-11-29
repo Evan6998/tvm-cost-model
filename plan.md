@@ -32,15 +32,15 @@ This file tracks the state of the project so that any collaborator or future ses
 - **Error hygiene**: do not mask missing dependencies or empty traces with silent fallbacks (e.g., strict import, explicit RuntimeErrors for missing schedule rules).
 
 ## Immediate Next Steps
+- **Model bring-up**: start PyTorch/PyG R-GAT prototype on encoded graphs and mined pairs; keep Node-MLP as a regression baseline and track Kendall Tau/NDCG on held-out pairs.
+
+## Pending / Upcoming
 - **Workload diversity + shape sweeps**: add NHWC/1x1/grouped conv, broadcast elementwise, reductions, transformer micro-kernels; introduce shape sampling modes (grid/random ranges) and multi-operator runs.
 - **Ranking-friendly sampling**: extend MetaScheduleSampler to inject random/mutated schedules as hard negatives and guarantee sufficient variety per workload.
 - **Hardware metadata**: start collecting numeric hardware features (cores, memory, cache, clocks) alongside `hardware_id` for cross-hardware training.
 - **Measurement on real hardware**: validate RPC/remote runner path on Ampere + Ada; target ≥50k labeled schedules per GPU with enriched metadata.
-- **Model bring-up**: start PyTorch/PyG R-GAT prototype on encoded graphs and mined pairs; keep Node-MLP as a regression baseline and track Kendall Tau/NDCG on held-out pairs.
-
-## Pending / Upcoming
 - **Explainability validation**: visualization tooling and fidelity experiments for attribution signals (Step 4).
-- **MetaSchedule integration**: PyCostModel wrapper, fallback logic, and telemetry plumbing (Step 5).
+- **MetaSchedule integration**: PyCostModel wrapper, and telemetry plumbing (Step 5).
 - **Full evaluation + release**: cross-operator/GPU experiments, ablations, and packaging of datasets/scripts (Step 6).
 
 ## Coordination Notes
