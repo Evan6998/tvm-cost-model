@@ -25,8 +25,8 @@ class TrainingConfig:
     max_pairs: int = 2048
     easy_gap: float = 10.0
     hard_gap: float = 2.0
-    margin: float = 0.1
-    weight_decay: float = 0.0
+    margin: float = 1.0
+    weight_decay: float = 1e-4
     pair_seed: int = 0
 
 
