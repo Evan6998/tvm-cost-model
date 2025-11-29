@@ -12,13 +12,32 @@ from typing import Dict, Iterable, List
 from pydantic import BaseModel, TypeAdapter
 
 DEFAULT_WORKLOADS = [
-    ("vecadd", {"n": 1024}),
-    ("gemm", {"m": 512, "n": 512, "k": 512}),
-    ("bmm", {"batch": 8, "m": 128, "n": 128, "k": 128}),
-    ("conv2d_nchw", {"n": 1, "ci": 64, "co": 64, "h": 56, "w": 56, "kh": 3, "kw": 3}),
-    ("depthwise_conv2d", {"n": 1, "ci": 64, "h": 56, "w": 56, "kh": 3, "kw": 3}),
-    ("layernorm", {"n": 64, "hidden": 256}),
-    ("softmax", {"n": 64, "k": 256}),
+    # 1) simple elementwise baseline
+    ("vecadd", {"n": 1_048_576}),
+
+    # 2) GEMM / MLP (corresponding to GeLU-MLP + MatMul)
+    ("gemm", {"m": 512,  "n": 512,  "k": 512}),     # old toy
+    ("gemm", {"m": 4096, "n": 1024, "k": 4096}),    # CALO-GNN MatMul
+    ("gemm", {"m": 128,  "n": 4096, "k": 1024}),    # GeLU-MLP FC1
+    ("gemm", {"m": 128,  "n": 1024, "k": 4096}),    # GeLU-MLP FC2
+
+    # 3) BMM + Softmax ( Attention (SDP) )
+    ("bmm",     {"batch": 512, "m": 128, "n": 128, "k": 64}),     # QK^T
+    ("softmax", {"n": 512 * 128, "k": 128}),                      # attention softmax
+
+    # 4) Conv2D / ResNet style
+    ("conv2d_nchw", {"n": 64, "ci": 3,   "co": 64,  "h": 224, "w": 224, "kh": 7, "kw": 7}),
+    ("conv2d_nchw", {"n": 64, "ci": 64,  "co": 64,  "h": 56,  "w": 56,  "kh": 3, "kw": 3}),
+    ("conv2d_nchw", {"n": 64, "ci": 256, "co": 256, "h": 56,  "w": 56,  "kh": 1, "kw": 1}),
+
+    # 5) Depthwise Conv / MobileNet-V3 style
+    ("depthwise_conv2d", {"n": 1, "ci": 16,  "h": 112, "w": 112, "kh": 3, "kw": 3}),
+    ("depthwise_conv2d", {"n": 1, "ci": 40,  "h": 28,  "w": 28,  "kh": 3, "kw": 3}),
+    ("depthwise_conv2d", {"n": 1, "ci": 160, "h": 7,   "w": 7,   "kh": 3, "kw": 3}),
+
+    # 6) LayerNorm / BERT hidden
+    ("layernorm", {"n": 32 * 128, "hidden": 1024}),
+    ("layernorm", {"n": 64 * 128, "hidden": 4096}),
 ]
 
 class WorkloadSpec(BaseModel):

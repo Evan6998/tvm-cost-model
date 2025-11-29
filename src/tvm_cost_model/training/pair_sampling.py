@@ -55,10 +55,10 @@ def make_ranking_pairs(
 def sample_ranking_pairs(
     measurements: Sequence[MeasurementRecord],
     num_pairs: int,
-    easy_gap: float = 0.3,
-    hard_gap: float = 0.1,
+    easy_gap: float,
+    hard_gap: float,
     seed: int | None = None,
-    max_difficulty: Difficulty | None = None,
+    allowed_difficulties: set[Difficulty] | None = None,
 ) -> List[RankedPair]:
     """Randomly sample ranking pairs without enumerating all combinations."""
 
@@ -66,13 +66,16 @@ def sample_ranking_pairs(
         return []
     rng = random.Random(seed)
     pairs: List[RankedPair] = []
-    while len(pairs) < num_pairs:
+    max_attempts = num_pairs * 20
+    attempts = 0
+    while len(pairs) < num_pairs and attempts < max_attempts:
+        attempts += 1
         a, b = rng.sample(measurements, 2)
         if a.runtime_ms == b.runtime_ms:
             continue
         better, worse = (a, b) if a.runtime_ms < b.runtime_ms else (b, a)
         difficulty = _classify_delta(worse.runtime_ms - better.runtime_ms, easy_gap, hard_gap)
-        if max_difficulty is not None and difficulty.value > max_difficulty.value:
+        if allowed_difficulties is not None and difficulty not in allowed_difficulties:
             continue
         pairs.append(RankedPair(better=better, worse=worse, difficulty=difficulty))
     return pairs
