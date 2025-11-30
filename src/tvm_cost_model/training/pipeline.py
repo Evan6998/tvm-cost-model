@@ -23,15 +23,15 @@ class TrainingConfig:
     learning_rate: float = 1e-3
     batch_size: int = 32
     max_pairs: int = 2048
-    easy_gap: float = 0.5
-    hard_gap: float = 0.1
+    easy_frac: float = 0.3  # 30% slower = easy
+    hard_frac: float = 0.1  # <=10% slower = hard (close calls) boundary
     margin: float = 1.0
     weight_decay: float = 1e-4
     pair_seed: int = 0
     show_progress: bool = True
     curriculum: bool = True
     curriculum_early_frac: float = 0.2  # ~first 20% epochs on easy pairs
-    curriculum_mid_frac: float = 0.5    # ~middle 50% on medium pairs (gap between easy/hard)
+    curriculum_mid_frac: float = 0.4    # ~middle 40% on medium pairs (gap between easy/hard)
 
 
 class TrainingPipeline:
@@ -89,8 +89,8 @@ class TrainingPipeline:
             pairs = sample_ranking_pairs(
                 measurements,
                 num_pairs=max_pairs,
-                easy_gap=self.config.easy_gap,
-                hard_gap=self.config.hard_gap,
+                easy_frac=self.config.easy_frac,
+                hard_frac=self.config.hard_frac,
                 seed=self.config.pair_seed,
             )
             encoded_pairs = _encode_pairs(pairs)
@@ -128,8 +128,8 @@ class TrainingPipeline:
             pairs = sample_ranking_pairs(
                 measurements,
                 num_pairs=max_pairs,
-                easy_gap=self.config.easy_gap,
-                hard_gap=self.config.hard_gap,
+                easy_frac=self.config.easy_frac,
+                hard_frac=self.config.hard_frac,
                 seed=self.config.pair_seed + seed_offset,
                 allowed_difficulties=allowed,
             )
@@ -140,8 +140,9 @@ class TrainingPipeline:
             print(
                 f"Stage '{stage_name}': training on {len(encoded_pairs)} pairs for {epochs} epochs "
                 f"(difficulties={[d.name for d in allowed]}), "
-                f"minimum delta: {min(pair.worse.runtime_ms - pair.better.runtime_ms for pair in pairs):.4f} ms, "
-                f"maximum delta: {max(pair.worse.runtime_ms - pair.better.runtime_ms for pair in pairs):.4f} ms."
+                f"{self.config.easy_frac=}, {self.config.hard_frac=}, "
+                f"min rel gap: {min((pair.worse.runtime_ms - pair.better.runtime_ms) / max(pair.better.runtime_ms, 1e-9) for pair in pairs):.3f}, "
+                f"max rel gap: {max((pair.worse.runtime_ms - pair.better.runtime_ms) / max(pair.better.runtime_ms, 1e-9) for pair in pairs):.3f}."
             )
             self.model.train_on_pairs(
                 encoded_pairs,

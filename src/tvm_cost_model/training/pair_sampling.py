@@ -27,16 +27,15 @@ class RankedPair:
 
 def make_ranking_pairs(
     measurements: Sequence[MeasurementRecord],
-    easy_gap: float = 0.5,
-    hard_gap: float = 0.1,
+    easy_frac: float = 0.3,
+    hard_frac: float = 0.05,
 ) -> List[RankedPair]:
     """Create ranking pairs from measurements.
 
     Args:
         measurements: Records with runtime_ms (lower is better).
-        easy_gap: Minimum runtime delta (ms) for an "easy" pair.
-        hard_gap: Maximum runtime delta (ms) for a "hard" pair.
-        curriculum: If True, include both easy and hard; otherwise return all pairs.
+        easy_frac: Minimum relative runtime delta (fraction) for an "easy" pair (e.g., 0.3 = 30% slower).
+        hard_frac: Maximum relative runtime delta (fraction) for a "hard" pair.
     """
 
     sorted_records = sorted(measurements, key=lambda m: m.runtime_ms)
@@ -47,7 +46,7 @@ def make_ranking_pairs(
             delta = worse.runtime_ms - better.runtime_ms
             if delta <= 0:
                 continue
-            difficulty = _classify_delta(delta, easy_gap, hard_gap)
+            difficulty = _classify_delta(delta, better.runtime_ms, easy_frac, hard_frac)
             pairs.append(RankedPair(better=better, worse=worse, difficulty=difficulty))
     return pairs
 
@@ -55,8 +54,8 @@ def make_ranking_pairs(
 def sample_ranking_pairs(
     measurements: Sequence[MeasurementRecord],
     num_pairs: int,
-    easy_gap: float,
-    hard_gap: float,
+    easy_frac: float,
+    hard_frac: float,
     seed: int | None = None,
     allowed_difficulties: set[Difficulty] | None = None,
 ) -> List[RankedPair]:
@@ -74,17 +73,27 @@ def sample_ranking_pairs(
         if a.runtime_ms == b.runtime_ms:
             continue
         better, worse = (a, b) if a.runtime_ms < b.runtime_ms else (b, a)
-        difficulty = _classify_delta(worse.runtime_ms - better.runtime_ms, easy_gap, hard_gap)
+        rel_gap = (worse.runtime_ms - better.runtime_ms) / max(better.runtime_ms, 1e-9)
+        if rel_gap < 0.05:  # discard near-ties below 5% relative difference
+            continue
+        difficulty = _classify_delta(
+            worse.runtime_ms - better.runtime_ms,
+            better.runtime_ms,
+            easy_frac,
+            hard_frac,
+        )
         if allowed_difficulties is not None and difficulty not in allowed_difficulties:
             continue
         pairs.append(RankedPair(better=better, worse=worse, difficulty=difficulty))
     return pairs
 
 
-def _classify_delta(delta: float, easy_gap: float, hard_gap: float) -> Difficulty:
-    if delta >= easy_gap:
+def _classify_delta(delta: float, better_runtime: float, easy_frac: float, hard_frac: float) -> Difficulty:
+    denom = max(better_runtime, 1e-9)
+    rel_gap = delta / denom
+    if rel_gap >= easy_frac:
         return Difficulty.EASY
-    if delta <= hard_gap:
+    if rel_gap <= hard_frac:
         return Difficulty.HARD
     return Difficulty.MEDIUM
 
