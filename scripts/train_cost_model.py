@@ -16,8 +16,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--learning-rate", type=float, default=1e-3, help="Optimizer learning rate")
     parser.add_argument("--batch-size", type=int, default=32, help="Pairs per optimization step")
     parser.add_argument("--max-pairs", type=int, default=2048, help="Number of ranking pairs to sample")
-    parser.add_argument("--easy-gap", type=float, default=0.5, help="Easy pair runtime delta (ms)")
-    parser.add_argument("--hard-gap", type=float, default=0.1, help="Hard pair runtime delta (ms)")
+    parser.add_argument("--easy-frac", type=float, default=0.3, help="Easy pair relative gap (fraction, e.g., 0.3 = 30%)")
+    parser.add_argument("--hard-frac", type=float, default=0.1, help="Hard pair relative gap (fraction, e.g., 0.1 = 10%)")
     parser.add_argument("--margin", type=float, default=0.1, help="Margin for ranking loss")
     parser.add_argument("--weight-decay", type=float, default=0.0, help="Weight decay for optimizer")
     parser.add_argument("--pair-seed", type=int, default=0, help="Seed for pair sampling")
@@ -31,8 +31,8 @@ def main() -> None:
         learning_rate=args.learning_rate,
         batch_size=args.batch_size,
         max_pairs=args.max_pairs,
-        easy_gap=args.easy_gap,
-        hard_gap=args.hard_gap,
+        easy_frac=args.easy_frac,
+        hard_frac=args.hard_frac,
         margin=args.margin,
         weight_decay=args.weight_decay,
         pair_seed=args.pair_seed,

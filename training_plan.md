@@ -170,7 +170,7 @@ def fit_measurements(self, measurements: Sequence[MeasurementRecord]) -> int:
     self.model.encoder.prime_feature_names(graphs)
     encodings = {id(m): self.model.encoder.encode(g) for m, g in zip(measurements, graphs)}
 
-    pairs = sample_ranking_pairs(measurements, num_pairs=..., easy_gap=..., hard_gap=..., seed=...)
+    pairs = sample_ranking_pairs(measurements, num_pairs=..., easy_frac=..., hard_frac=..., seed=...)
     encoded_pairs: list[EncodedPair] = []
     for pair in pairs:
         better_enc = encodings.get(id(pair.better))
@@ -330,7 +330,7 @@ Current practice:
 	•	In MetaScheduleAdapter.update, score = -measured_cost implies:
 	•	Lower runtime → higher score.
 	•	In ranking training:
-	•	Pairs are constructed via sample_ranking_pairs(measurements, easy_gap, hard_gap, ...) (assumed to use latency differences).
+	•	Pairs are constructed via sample_ranking_pairs(measurements, easy_frac, hard_frac, ...) (relative latency differences).
 	•	In regression training:
 	•	scores are arbitrary floats (user-provided).
 
@@ -510,4 +510,3 @@ Once these changes are made, the system will:
 	•	Use pairwise ranking on MeasurementRecords as the main training signal.
 	•	Support pointwise regression via GraphCostModel.update for pretraining / ablations.
 	•	Expose a proper PyCostModel to TVM MetaSchedule, fully aligned with the official update/predict interface.
-
