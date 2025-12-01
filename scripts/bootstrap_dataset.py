@@ -175,13 +175,14 @@ def main() -> None:
 
     artifact_name = artifact_name.replace(" ", "_")
     builder = DatasetBuilder(sampler, evaluator, output_dir)
-    measurements = builder.collect(
+    artifact = builder.collect(
         operator=args.operator,
         batches=args.batches,
         batch_size=args.batch_size,
         hardware_id=args.hardware,
+        artifact_name=artifact_name,
+        flush_ratio=0.1,
     )
-    artifact = builder.export(measurements, artifact_name=artifact_name)
     print(f"Wrote dataset to {artifact}")
 
 
