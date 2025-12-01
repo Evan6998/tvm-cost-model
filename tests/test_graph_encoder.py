@@ -50,47 +50,40 @@ def test_graph_encoder_emits_derived_features_and_values():
     )
 
     encoding = GraphEncoder().encode(graph)
-    feature_names = encoding.feature_names
-    for name in [
-        "extent",
-        "total_bytes",
-        "loop_depth",
-        "log1p:extent",
-        "log1p:total_bytes",
-        "log1p:total_extent",
-        "log1p:total_flops",
-        "loop:depth_x_log_extent",
-        "loop:parallel_log_extent",
-        "buffer:traffic_bytes",
-        "buffer:traffic_ratio",
-        "deg_in",
-        "deg_out",
-        "deg_total",
-        "deg_in:iterates",
-        "deg_out:iterates",
-        "deg_in:accesses",
-        "deg_out:writes",
-    ]:
-        assert name in feature_names
+    expected_names = sorted(
+        [
+            "depth",
+            "elem_bytes",
+            "extent",
+            "is_parallel",
+            "loop_depth",
+            "read_count",
+            "total_bytes",
+            "total_extent",
+            "total_flops",
+            "write_count",
+        ]
+    )
+    assert encoding.feature_names == expected_names
 
     def value(node_idx: int, feature: str) -> float:
-        return encoding.node_features[node_idx][feature_names.index(feature)]
+        idx = encoding.feature_names.index(feature)
+        return encoding.node_features[node_idx][idx]
 
-    log_extent = math.log1p(9)
-    assert math.isclose(value(0, "log1p:extent"), log_extent)
-    assert math.isclose(value(0, "loop:depth_x_log_extent"), 2 * log_extent)
-    assert math.isclose(value(0, "loop:parallel_log_extent"), log_extent)
+    # Log-scaled fields
+    assert math.isclose(value(0, "extent"), math.log1p(9))
+    assert math.isclose(value(1, "total_bytes"), math.log1p(400))
+    assert math.isclose(value(1, "read_count"), math.log1p(3))
+    assert math.isclose(value(1, "write_count"), math.log1p(1))
+    assert math.isclose(value(2, "total_extent"), math.log1p(18))
+    assert math.isclose(value(2, "total_flops"), math.log1p(100))
 
-    buffer_traffic_bytes = 16.0
-    assert math.isclose(value(1, "buffer:traffic_bytes"), buffer_traffic_bytes)
-    assert math.isclose(value(1, "buffer:traffic_ratio"), buffer_traffic_bytes / 400.0)
-    assert math.isclose(value(1, "log1p:total_bytes"), math.log1p(400))
+    # Raw fields
+    assert value(0, "depth") == 2.0
+    assert value(0, "is_parallel") == 1.0
+    assert value(1, "elem_bytes") == 4.0
+    assert value(2, "loop_depth") == 2.0
 
-    # Degree features
-    assert value(0, "deg_in") == 1.0
-    assert value(0, "deg_out") == 1.0
-    assert value(0, "deg_total") == 2.0
-    assert value(0, "deg_in:iterates") == 1.0
-    assert value(0, "deg_out:writes") == 1.0
-    assert value(2, "deg_out:iterates") == 1.0
-    assert value(2, "deg_out:accesses") == 1.0
+    # Missing attributes fall back to zero
+    assert value(0, "total_flops") == 0.0
+    assert value(2, "extent") == 0.0
