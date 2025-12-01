@@ -93,32 +93,65 @@ class DatasetBuilder:
         batches: int,
         batch_size: int,
         hardware_id: str,
+        artifact_name: str,
         hardware_features: Dict[str, float] | None = None,
-    ) -> List[MeasurementRecord]:
-        """Collect measurement records for the requested operator."""
+        flush_ratio: float = 0.1,
+    ) -> Path:
+        """Collect measurement records and stream them to a Parquet artifact."""
 
-        measurements: List[MeasurementRecord] = []
-        for _ in range(batches):
-            samples = self._sampler.sample(operator, batch_size)
-            with tqdm(total=batch_size, desc=f"Evaluating {operator}", unit="sched") as pbar:
-                for sample in samples:
-                    runtime_ms = self._evaluator.evaluate(sample, hardware_id)
-                    measurements.append(
-                        MeasurementRecord(
-                            operator=sample.operator,
-                            schedule_json=sample.schedule_json,
-                            scheduled_tir=sample.scheduled_tir,
-                            workload_shape=sample.workload_shape,
-                            runtime_ms=runtime_ms,
-                            hardware_id=hardware_id,
-                            target=sample.target,
-                            workload_key=sample.workload_key,
-                            original_tir=sample.original_tir,
-                            hardware_features=hardware_features,
+        if not (0 < flush_ratio <= 1):
+            raise ValueError("flush_ratio must be within (0, 1]")
+
+        chunk_size = max(1, int(batch_size * flush_ratio))
+        output = self._output_dir / f"{artifact_name}.parquet"
+        if output.exists():
+            output.unlink()
+
+        writer: pq.ParquetWriter | None = None
+        chunk: List[MeasurementRecord] = []
+
+        def flush_chunk() -> None:
+            nonlocal writer
+            if not chunk:
+                return
+            table = pa.Table.from_pylist([m.as_dict() for m in chunk])
+            if writer is None:
+                writer = pq.ParquetWriter(output, table.schema) # type: ignore
+            writer.write_table(table) # type: ignore
+            chunk.clear()
+
+        try:
+            for _ in range(batches):
+                samples = self._sampler.sample(operator, batch_size)
+                with tqdm(total=batch_size, desc=f"Evaluating {operator}", unit="sched") as pbar:
+                    for sample in samples:
+                        runtime_ms = self._evaluator.evaluate(sample, hardware_id)
+                        chunk.append(
+                            MeasurementRecord(
+                                operator=sample.operator,
+                                schedule_json=sample.schedule_json,
+                                scheduled_tir=sample.scheduled_tir,
+                                workload_shape=sample.workload_shape,
+                                runtime_ms=runtime_ms,
+                                hardware_id=hardware_id,
+                                target=sample.target,
+                                workload_key=sample.workload_key,
+                                original_tir=sample.original_tir,
+                                hardware_features=hardware_features,
+                            )
                         )
-                    )
-                    pbar.update(1)
-        return measurements
+                        if len(chunk) >= chunk_size:
+                            flush_chunk()
+                        pbar.update(1)
+            flush_chunk()
+        finally:
+            if writer is not None:
+                writer.close()
+
+        if writer is None:
+            raise ValueError("No measurements collected for export")
+
+        return output
 
     def export(self, measurements: List[MeasurementRecord], artifact_name: str) -> Path:
         """Write measurements to a Parquet file and return its path."""
