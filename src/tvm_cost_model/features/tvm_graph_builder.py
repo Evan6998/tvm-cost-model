@@ -66,6 +66,18 @@ class _TIRVisitor:
         self.unrecognized_stmts: Set[str] = set()
         self.unrecognized_exprs: Set[str] = set()
 
+    def _current_iterations(self) -> int:
+        """Product of loop extents along the active stack (defaulting unknowns to 1)."""
+
+        iters = 1
+        for loop_idx in self.loop_stack:
+            if loop_idx < 0 or loop_idx >= len(self.loops):
+                continue
+            extent = self.loops[loop_idx].extent
+            if extent > 0:
+                iters *= extent
+        return max(iters, 1)
+
     def visit(self, stmt: tir.Stmt) -> None:
         self._visit_stmt(stmt)
         if self.unrecognized_stmts or self.unrecognized_exprs:
@@ -153,7 +165,7 @@ class _TIRVisitor:
             return
 
         if isinstance(expr, (tir.Add, tir.Sub, tir.Mul, tir.Div, tir.FloorDiv, tir.FloorMod, tir.Mod, tir.Max, tir.Min)):
-            self.total_flops += 1
+            self.total_flops += self._current_iterations()
             self._visit_expr(expr.a)  # type: ignore[arg-type]
             self._visit_expr(expr.b)  # type: ignore[arg-type]
             return
@@ -165,7 +177,7 @@ class _TIRVisitor:
             return
 
         if isinstance(expr, tir.Call):
-            self.total_flops += 1
+            self.total_flops += self._current_iterations()
             for arg in expr.args:
                 self._visit_expr(arg)
             return
@@ -226,13 +238,15 @@ class _TIRVisitor:
         return stats
 
     def _record_read(self, buffer: tir.Buffer) -> None:
+        iters = self._current_iterations()
         stats = self._ensure_buffer(buffer)
-        stats.read_count += 1
+        stats.read_count += iters
         self._record_loop_access(buffer)
 
     def _record_write(self, buffer: tir.Buffer) -> None:
+        iters = self._current_iterations()
         stats = self._ensure_buffer(buffer)
-        stats.write_count += 1
+        stats.write_count += iters
         self._record_loop_access(buffer)
 
 
