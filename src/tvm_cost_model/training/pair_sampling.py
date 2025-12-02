@@ -65,7 +65,7 @@ def sample_ranking_pairs(
         return []
     rng = random.Random(seed)
     pairs: List[RankedPair] = []
-    max_attempts = num_pairs * 20
+    max_attempts = num_pairs * 100
     attempts = 0
     while len(pairs) < num_pairs and attempts < max_attempts:
         attempts += 1
@@ -74,7 +74,7 @@ def sample_ranking_pairs(
             continue
         better, worse = (a, b) if a.runtime_ms < b.runtime_ms else (b, a)
         rel_gap = (worse.runtime_ms - better.runtime_ms) / max(better.runtime_ms, 1e-9)
-        if rel_gap < 0.05:  # discard near-ties below 5% relative difference
+        if rel_gap < 0.01:  # discard only extremely small gaps
             continue
         difficulty = _classify_delta(
             worse.runtime_ms - better.runtime_ms,

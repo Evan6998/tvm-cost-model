@@ -50,7 +50,9 @@ class GraphCostModel:
         encoding = self.encoder.encode(graph)
         self._ensure_model(len(encoding.feature_names))
         assert self._model is not None
-        output: RankerOutput = self._model(encoding)
+        self._model.eval()
+        with torch.no_grad():
+            output: RankerOutput = self._model(encoding)
         attribution = {node.name: float(weight.detach().item()) for node, weight in zip(graph.nodes, output.attribution)}
         return Prediction(score=float(output.score.detach().item()), attribution=attribution)
 
@@ -96,6 +98,7 @@ class GraphCostModel:
         self._ensure_model(feature_dim)
         assert self._model is not None
         assert self._optimizer is not None
+        self._model.train()
 
         pairs_list = list(pairs)
         random.shuffle(pairs_list)
@@ -179,6 +182,8 @@ class GraphCostModel:
         total_loss = 0.0
         correct = 0
         count = 0
+        prev_training = self._model.training
+        self._model.eval()
         with torch.no_grad():
             for pair in pairs:
                 better_score, worse_score = self._model.score_pair(pair.better, pair.worse)
@@ -191,4 +196,6 @@ class GraphCostModel:
                 total_loss += float(loss.detach())
                 correct += int((better_score > worse_score).item())
                 count += 1
+        if prev_training:
+            self._model.train()
         return total_loss, correct, count
