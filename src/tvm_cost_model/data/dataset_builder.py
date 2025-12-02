@@ -125,23 +125,26 @@ class DatasetBuilder:
                 samples = self._sampler.sample(operator, batch_size)
                 with tqdm(total=batch_size, desc=f"Evaluating {operator}", unit="sched") as pbar:
                     for sample in samples:
-                        runtime_ms = self._evaluator.evaluate(sample, hardware_id)
-                        chunk.append(
-                            MeasurementRecord(
-                                operator=sample.operator,
-                                schedule_json=sample.schedule_json,
-                                scheduled_tir=sample.scheduled_tir,
-                                workload_shape=sample.workload_shape,
-                                runtime_ms=runtime_ms,
-                                hardware_id=hardware_id,
-                                target=sample.target,
-                                workload_key=sample.workload_key,
-                                original_tir=sample.original_tir,
-                                hardware_features=hardware_features,
+                        try:
+                            runtime_ms = self._evaluator.evaluate(sample, hardware_id)
+                            chunk.append(
+                                MeasurementRecord(
+                                    operator=sample.operator,
+                                    schedule_json=sample.schedule_json,
+                                    scheduled_tir=sample.scheduled_tir,
+                                    workload_shape=sample.workload_shape,
+                                    runtime_ms=runtime_ms,
+                                    hardware_id=hardware_id,
+                                    target=sample.target,
+                                    workload_key=sample.workload_key,
+                                    original_tir=sample.original_tir,
+                                    hardware_features=hardware_features,
+                                )
                             )
-                        )
-                        if len(chunk) >= chunk_size:
-                            flush_chunk()
+                            if len(chunk) >= chunk_size:
+                                flush_chunk()
+                        except Exception as e:
+                            print(f"Error evaluating sample: {e}")
                         pbar.update(1)
             flush_chunk()
         finally:

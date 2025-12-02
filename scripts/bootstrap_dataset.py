@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import tempfile
+import random
 from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, Sequence, Tuple
@@ -169,7 +170,7 @@ def main() -> None:
             runner=runner,
             input_generator=partial(generate_inputs_from_workload, dtype=args.dtype),
         )
-        artifact_name = f"{args.mode}_{args.operator}_{args.hardware}_{args.target}".lower()
+        artifact_name = f"{args.mode}_{args.operator}_{args.hardware}_{args.target}_{random.randint(0, 9999)}".lower()
     else:
         raise ValueError(f"Unsupported mode '{args.mode}'")
 

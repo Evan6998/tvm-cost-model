@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import subprocess
 import tempfile
 from pathlib import Path
@@ -16,7 +17,7 @@ DEFAULT_WORKLOADS = [
     ("vecadd", {"n": 1_048_576}),
 
     # 2) GEMM / MLP (corresponding to GeLU-MLP + MatMul)
-    ("gemm", {"m": 512,  "n": 512,  "k": 512}),     # old toy
+    # ("gemm", {"m": 512,  "n": 512,  "k": 512}),     # old toy
     ("gemm", {"m": 4096, "n": 1024, "k": 4096}),    # CALO-GNN MatMul
     ("gemm", {"m": 128,  "n": 4096, "k": 1024}),    # GeLU-MLP FC1
     ("gemm", {"m": 128,  "n": 1024, "k": 4096}),    # GeLU-MLP FC2
@@ -132,7 +133,25 @@ def main() -> None:
     output_root.mkdir(parents=True, exist_ok=True)
     shards: List[Path] = []
     for op, shape in workloads:
-        shards.append(run_bootstrap(op, shape, args, output_root))
+        for attempt in range(2):
+            try:
+                shards.append(run_bootstrap(op, shape, args, output_root))
+                break
+            except Exception as err:
+                logging.exception(
+                    "Failed to process workload %s with shape %s on attempt %d/2: %s",
+                    op,
+                    shape,
+                    attempt + 1,
+                    err,
+                )
+                if attempt == 0:
+                    logging.warning("Retrying workload %s after failure", op)
+                else:
+                    logging.error("Skipping workload %s after repeated failure", op)
+    if not shards:
+        logging.error("No shards produced; skipping merge.")
+        return
     merged = output_root / "sweep_merged.parquet"
     merge_parquet(shards, merged)
     print(f"Merged {len(shards)} shards into {merged}")
