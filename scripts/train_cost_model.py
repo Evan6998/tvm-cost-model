@@ -21,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--margin", type=float, default=0.1, help="Margin for ranking loss")
     parser.add_argument("--weight-decay", type=float, default=0.0, help="Weight decay for optimizer")
     parser.add_argument("--pair-seed", type=int, default=0, help="Seed for pair sampling")
+    parser.add_argument("--output", type=str, default="", help="Path to save the trained model (torch format)")
     return parser
 
 
@@ -57,6 +58,11 @@ def main() -> None:
         pipeline.fit(["tir_module"], [0.0])
         prediction = pipeline.predict("tir_module")
         print(f"Dummy score (no dataset provided): {prediction.score}")
+
+    if args.output:
+        output_path = Path(args.output)
+        pipeline.save_model(output_path)
+        print(f"Saved trained model to {output_path.resolve()}")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable, Sequence
 
 from tvm_cost_model.data.dataset_builder import MeasurementRecord
@@ -53,6 +54,11 @@ class TrainingPipeline:
     def predict(self, tir_module: str) -> Prediction:
         graph = self._build_graph(tir_module)
         return self.model.predict(graph)
+
+    def save_model(self, path: str | Path) -> None:
+        """Persist the underlying cost model to disk."""
+
+        self.model.save(path)
 
     def fit_measurements(self, measurements: Sequence[MeasurementRecord]) -> int:
         """Train on MeasurementRecords using pairwise ranking."""
