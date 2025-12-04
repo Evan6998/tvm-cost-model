@@ -41,7 +41,7 @@ class GraphEncoder:
     def __init__(self) -> None:
         self.node_type_to_id: dict[str, int] = {}
         self.edge_type_to_id: dict[str, int] = {}
-        self._feature_names: list[str] = []
+        self.feature_names: list[str] = []
 
     def encode(self, graph: ProgramGraph) -> GraphEncoding:
         if not graph.nodes:
@@ -87,19 +87,19 @@ class GraphEncoder:
         return self.edge_type_to_id[edge_type]
 
     def _collect_feature_names(self, graph: ProgramGraph) -> list[str]:
-        feature_names = set(self._feature_names)
+        feature_names = set(self.feature_names)
         for node in graph.nodes:
             feature_names.update(node.attrs.keys())
         sorted_names = sorted(feature_names)
-        self._feature_names = sorted_names
+        self.feature_names = sorted_names
         return sorted_names
 
     def prime_feature_names(self, graphs: Sequence[ProgramGraph]) -> list[str]:
         """Pre-compute the feature union across graphs to keep encodings aligned."""
 
-        feature_names = set(self._feature_names)
+        feature_names = set(self.feature_names)
         for graph in graphs:
             for node in graph.nodes:
                 feature_names.update(node.attrs.keys())
-        self._feature_names = sorted(feature_names)
-        return self._feature_names
+        self.feature_names = sorted(feature_names)
+        return self.feature_names

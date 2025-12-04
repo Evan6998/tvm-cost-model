@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Sequence
+from pathlib import Path
+from typing import Sequence, Any
 
 import torch
 import torch.nn as nn
@@ -149,6 +150,41 @@ class GraphCostModel:
 
         self._is_trained = True
         return avg_loss / max(steps, 1)
+
+    def save(self, path: str | Path) -> None:
+        """Persist the ranker weights and encoder state to ``path``.
+
+        Saves model/optimizer state along with encoder vocabularies and
+        feature dimensions so the model can be restored for inference or
+        continued training.
+        """
+
+        if self._model is None or self._feature_dim is None:
+            raise RuntimeError("Cannot save an uninitialized model. Train or run predict first.")
+
+        payload: dict[str, Any] = {
+            "state_dict": self._model.state_dict(),
+            "optimizer_state_dict": self._optimizer.state_dict() if self._optimizer else None,
+            "encoder": {
+                "node_type_to_id": self.encoder.node_type_to_id,
+                "edge_type_to_id": self.encoder.edge_type_to_id,
+                "feature_names": self.encoder.feature_names,
+            },
+            "config": {
+                "learning_rate": self.learning_rate,
+                "margin": self.margin,
+                "weight_decay": self.weight_decay,
+                "hidden_dim": self.hidden_dim,
+                "feature_dim": self._feature_dim,
+                "node_type_capacity": self._node_type_capacity,
+                "edge_type_capacity": self._edge_type_capacity,
+                "is_trained": self._is_trained,
+            },
+        }
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(payload, path)
 
     def _ensure_model(self, feature_dim: int) -> None:
         """(Re)initialize the underlying ranker + optimizer if needed."""
