@@ -73,7 +73,7 @@ class TrainingPipeline:
         
         import random
         random.shuffle(measurements)
-        measurements = measurements[:1000]
+        # measurements = measurements[:1000]
         print(f"Building graphs for {len(measurements)=} scheduled TIR modules...")
         graphs: list[ProgramGraph] = []
         # graphs = [self._build_graph(m.scheduled_tir or m.original_tir) for m in measurements]
