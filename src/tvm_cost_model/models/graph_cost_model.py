@@ -31,6 +31,7 @@ class GraphCostModel:
         margin: float = 0.1,
         weight_decay: float = 1e-4,
         hidden_dim: int = 64,
+        device: torch.device | str | None = None,
     ) -> None:
         self._is_trained = False
         self.encoder = GraphEncoder()
@@ -38,6 +39,7 @@ class GraphCostModel:
         self.margin = margin
         self.weight_decay = weight_decay
         self.hidden_dim = hidden_dim
+        self.device = torch.device(device) if device is not None else _select_device()
         self._model: GraphGNNRanker | None = None
         self._optimizer: torch.optim.Optimizer | None = None
         self._feature_dim: int | None = None
@@ -72,7 +74,7 @@ class GraphCostModel:
         assert self._optimizer is not None
 
         preds = torch.stack([self._model(enc).score for enc in encodings])
-        target = torch.tensor(list(scores), dtype=torch.float32)
+        target = torch.tensor(list(scores), dtype=torch.float32, device=preds.device)
         loss = torch.mean((preds - target) ** 2)
         self._optimizer.zero_grad()
         loss.backward()  # type: ignore
@@ -189,7 +191,7 @@ class GraphCostModel:
     def load(self, path: str | Path) -> None:
         """Load a previously saved model/optimizer/encoder payload."""
 
-        payload = torch.load(path, map_location="cpu")
+        payload = torch.load(path, map_location=self.device)
         encoder_state = payload.get("encoder", {})
         self.encoder.node_type_to_id = dict(encoder_state.get("node_type_to_id", {}))
         self.encoder.edge_type_to_id = dict(encoder_state.get("edge_type_to_id", {}))
@@ -206,8 +208,10 @@ class GraphCostModel:
         self._ensure_model(feature_dim)
         if self._model is not None and "state_dict" in payload:
             self._model.load_state_dict(payload["state_dict"])
+            self._model.to(self.device)
         if self._optimizer is not None and payload.get("optimizer_state_dict"):
             self._optimizer.load_state_dict(payload["optimizer_state_dict"])
+            _move_optimizer_state(self._optimizer, self.device)
 
         self._is_trained = bool(config.get("is_trained", False))
 
@@ -230,12 +234,17 @@ class GraphCostModel:
                 num_node_types=capacity,
                 num_edge_types=edge_capacity,
             )
+            self._model.to(self.device)
             self._optimizer = torch.optim.AdamW(
                 self._model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
             )
             self._feature_dim = feature_dim
             self._node_type_capacity = capacity
             self._edge_type_capacity = edge_capacity
+        elif next(self._model.parameters()).device != self.device:
+            self._model.to(self.device)
+            if self._optimizer is not None:
+                _move_optimizer_state(self._optimizer, self.device)
 
     def _evaluate_pairs(self, pairs: Sequence[EncodedPair]) -> tuple[float, int, int]:
         if not pairs or self._model is None:
@@ -260,3 +269,18 @@ class GraphCostModel:
         if prev_training:
             self._model.train()
         return total_loss, correct, count
+
+
+def _select_device() -> torch.device:
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+def _move_optimizer_state(optimizer: torch.optim.Optimizer, device: torch.device) -> None:
+    for state in optimizer.state.values():
+        for k, v in state.items():
+            if isinstance(v, torch.Tensor):
+                state[k] = v.to(device)
