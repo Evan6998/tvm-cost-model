@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 from tvm import tir  # type: ignore[import]
+from tvm.ir import IRModule  # type: ignore[import]
 from tvm.runtime import DataType  # type: ignore[import]
 from tvm.script import from_source  # type: ignore[import]
 from tvm.tir import stmt_functor  # type: ignore[import]
@@ -277,11 +278,11 @@ class TVMGraphBuilder(GraphBuilder):
     def __init__(self) -> None:
         super().__init__()
 
-    def build(self, tir_script: str) -> ProgramGraph:  # type: ignore[override]
-        mod = from_source(tir_script)
-        func = next(iter(mod.functions.values()))
+    def build(self, tir_source: Any) -> ProgramGraph:  # type: ignore[override]
+        mod = self._to_ir_module(tir_source)
+        func = next(iter(mod.functions.values())) # type: ignore[call-arg]
         visitor = _TIRVisitor()
-        visitor.visit(func.body)
+        visitor.visit(func.body) # type: ignore[arg-type]
 
         buffers = sorted(visitor.buffers.keys())
 
@@ -374,3 +375,27 @@ class TVMGraphBuilder(GraphBuilder):
                 edges.append((loop_idx, buffer_idx, "loop_accesses"))
 
         return ProgramGraph(nodes=nodes, edges=edges)
+
+    def _to_ir_module(self, tir_source: Any) -> IRModule:
+        if isinstance(tir_source, IRModule):
+            return tir_source
+        if isinstance(tir_source, tir.Schedule):
+            mod = getattr(tir_source, "mod", None)
+            if mod is not None:
+                return mod
+        if isinstance(tir_source, tir.PrimFunc):
+            return IRModule({"main": tir_source})
+        if isinstance(tir_source, str):
+            return from_source(tir_source)
+
+        if hasattr(tir_source, "mod"):
+            mod = getattr(tir_source, "mod")
+            if isinstance(mod, IRModule):
+                return mod
+        if hasattr(tir_source, "script"):
+            try:
+                return from_source(getattr(tir_source, "script")())
+            except Exception:
+                print("Warning: failed to parse TIR from script()")
+
+        return from_source(str(tir_source))

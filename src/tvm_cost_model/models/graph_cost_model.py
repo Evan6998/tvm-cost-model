@@ -186,6 +186,31 @@ class GraphCostModel:
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(payload, path)
 
+    def load(self, path: str | Path) -> None:
+        """Load a previously saved model/optimizer/encoder payload."""
+
+        payload = torch.load(path, map_location="cpu")
+        encoder_state = payload.get("encoder", {})
+        self.encoder.node_type_to_id = dict(encoder_state.get("node_type_to_id", {}))
+        self.encoder.edge_type_to_id = dict(encoder_state.get("edge_type_to_id", {}))
+        self.encoder.feature_names = list(encoder_state.get("feature_names", []))
+
+        config = payload.get("config", {})
+        self.learning_rate = float(config.get("learning_rate", self.learning_rate))
+        self.margin = float(config.get("margin", self.margin))
+        self.weight_decay = float(config.get("weight_decay", self.weight_decay))
+        self.hidden_dim = int(config.get("hidden_dim", self.hidden_dim))
+        feature_dim = int(config.get("feature_dim", len(self.encoder.feature_names)))
+        self._margin_loss = nn.MarginRankingLoss(margin=self.margin)
+
+        self._ensure_model(feature_dim)
+        if self._model is not None and "state_dict" in payload:
+            self._model.load_state_dict(payload["state_dict"])
+        if self._optimizer is not None and payload.get("optimizer_state_dict"):
+            self._optimizer.load_state_dict(payload["optimizer_state_dict"])
+
+        self._is_trained = bool(config.get("is_trained", False))
+
     def _ensure_model(self, feature_dim: int) -> None:
         """(Re)initialize the underlying ranker + optimizer if needed."""
 

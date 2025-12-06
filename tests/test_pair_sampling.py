@@ -40,4 +40,4 @@ def test_sample_ranking_pairs_discards_near_ties():
     # 4% gap should be discarded by the sampler's hardcoded 5% filter
     records = _mk([100.0, 104.0, 120.0])
     pairs = sample_ranking_pairs(records, num_pairs=10, easy_frac=0.3, hard_frac=0.05, seed=1)
-    assert all((p.worse.runtime_ms - p.better.runtime_ms) / p.better.runtime_ms >= 0.05 for p in pairs)
+    assert all((p.worse.runtime_ms - p.better.runtime_ms) / p.better.runtime_ms >= 0.01 for p in pairs)

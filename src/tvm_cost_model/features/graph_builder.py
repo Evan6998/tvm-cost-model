@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Any, Dict, List
 
 
 @dataclass
@@ -120,9 +120,10 @@ class GraphBuilder:
     _loop_pattern = re.compile(r"for\s+(\w+)\s+in\s+range\((\d+)\)")
     _buffer_pattern = re.compile(r"(\w+)\[")
 
-    def build(self, tir_module: str) -> ProgramGraph:
-        loops = self._parse_loops(tir_module)
-        buffers = sorted(self._parse_buffers(tir_module))
+    def build(self, tir_module: Any) -> ProgramGraph:
+        text = tir_module if isinstance(tir_module, str) else str(tir_module)
+        loops = self._parse_loops(text)
+        buffers = sorted(self._parse_buffers(text))
 
         nodes: List[GraphNode] = []
         edges: List[tuple[int, int, str]] = []
