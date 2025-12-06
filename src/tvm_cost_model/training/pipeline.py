@@ -14,6 +14,8 @@ from tvm_cost_model.features.tvm_graph_builder import TVMGraphBuilder
 from tvm_cost_model.features.graph_builder import GraphBuilder, ProgramGraph
 from tvm_cost_model.integration.utils import measurement_to_score
 
+from tqdm import tqdm
+
 
 def _default_builder() -> GraphBuilder:
     return TVMGraphBuilder()
@@ -47,6 +49,8 @@ class TrainingPipeline:
             margin=self.config.margin,
             weight_decay=self.config.weight_decay,
         )
+        if self.model.device.type != "cpu":
+            print(f"Using device: {self.model.device}")
 
     def fit(self, tir_modules: Iterable[Any], scores: Iterable[float]) -> None:
         graphs = [self._build_graph(tir) for tir in tir_modules]
@@ -68,8 +72,13 @@ class TrainingPipeline:
             return 0
         
         print(f"Building graphs for {len(measurements)=} scheduled TIR modules...")
-        graphs = [self._build_graph(m.scheduled_tir or m.original_tir) for m in measurements]
-        # graphs[5].pretty_print()
+        graphs: list[ProgramGraph] = []
+        # graphs = [self._build_graph(m.scheduled_tir or m.original_tir) for m in measurements]
+        with tqdm(total=len(measurements), desc="Building graphs", unit="graph") as pbar:
+            for m in measurements:
+                graph = self._build_graph(m.scheduled_tir or m.original_tir)
+                graphs.append(graph)
+                pbar.update(1)
         self.model.encoder.prime_feature_names(graphs)
         print("Encoding graphs...")
         encodings = {id(m): self.model.encoder.encode(g) for m, g in zip(measurements, graphs)}
