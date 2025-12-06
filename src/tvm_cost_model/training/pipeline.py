@@ -65,12 +65,15 @@ class TrainingPipeline:
 
         self.model.save(path)
 
-    def fit_measurements(self, measurements: Sequence[MeasurementRecord]) -> int:
+    def fit_measurements(self, measurements: list[MeasurementRecord]) -> int:
         """Train on MeasurementRecords using pairwise ranking."""
 
         if not measurements:
             return 0
         
+        import random
+        random.shuffle(measurements)
+        # measurements = measurements[:1000]
         print(f"Building graphs for {len(measurements)=} scheduled TIR modules...")
         graphs: list[ProgramGraph] = []
         # graphs = [self._build_graph(m.scheduled_tir or m.original_tir) for m in measurements]
@@ -82,6 +85,9 @@ class TrainingPipeline:
         self.model.encoder.prime_feature_names(graphs)
         print("Encoding graphs...")
         encodings = {id(m): self.model.encoder.encode(g) for m, g in zip(measurements, graphs)}
+        tensor_encodings = {
+            key: self.model.encoder.to_tensor_encoding(enc, device=self.model.device) for key, enc in encodings.items()
+        }
 
         max_pairs = self.config.max_pairs
         if max_pairs <= 0:
@@ -91,8 +97,8 @@ class TrainingPipeline:
         def _encode_pairs(pairs: Sequence[RankedPair]) -> list[EncodedPair]:
             encoded_pairs: list[EncodedPair] = []
             for pair in pairs:
-                better_enc = encodings.get(id(pair.better))
-                worse_enc = encodings.get(id(pair.worse))
+                better_enc = tensor_encodings.get(id(pair.better))
+                worse_enc = tensor_encodings.get(id(pair.worse))
                 if better_enc is None or worse_enc is None:
                     continue
                 encoded_pairs.append(

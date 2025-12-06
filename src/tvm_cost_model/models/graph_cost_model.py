@@ -68,12 +68,13 @@ class GraphCostModel:
             raise ValueError("graphs and scores must have the same length")
         self.encoder.prime_feature_names(graphs)
         encodings = [self.encoder.encode(graph) for graph in graphs]
+        tensor_encodings = [self.encoder.to_tensor_encoding(enc, device=self.device) for enc in encodings]
         feature_dim = len(encodings[0].feature_names)
         self._ensure_model(feature_dim)
         assert self._model is not None
         assert self._optimizer is not None
 
-        preds = torch.stack([self._model(enc).score for enc in encodings])
+        preds = torch.stack([self._model(enc).score for enc in tensor_encodings])
         target = torch.tensor(list(scores), dtype=torch.float32, device=preds.device)
         loss = torch.mean((preds - target) ** 2)
         self._optimizer.zero_grad()

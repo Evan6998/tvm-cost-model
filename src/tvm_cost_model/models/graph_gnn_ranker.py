@@ -9,10 +9,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from tvm_cost_model.features.graph_encoder import GraphEncoding
+from tvm_cost_model.features.graph_encoder import GraphEncoding, TensorGraphEncoding
 
 
 def _to_tensor(values: Any, dtype: torch.dtype = torch.float32, device: torch.device | None = None) -> torch.Tensor:
+    if isinstance(values, torch.Tensor):
+        return values.to(device=device, dtype=dtype)
     return torch.tensor(values, dtype=dtype, device=device)
 
 
@@ -108,23 +110,30 @@ class GraphGNNRanker(nn.Module):
             nn.Linear(hidden_dim, 1),
         )
 
-    def forward(self, encoding: GraphEncoding) -> RankerOutput:
-        if not encoding.node_features:
-            raise ValueError("Encoding has no node features.")
-
+    def forward(self, encoding: GraphEncoding | TensorGraphEncoding) -> RankerOutput:
         device = next(self.parameters()).device
-        node_feats = _to_tensor(encoding.node_features, dtype=torch.float32, device=device)
-        type_ids = _to_tensor(encoding.node_types, dtype=torch.long, device=device)
-        edge_index = (
-            _to_tensor(encoding.edge_index, dtype=torch.long, device=device)
-            if encoding.edge_index
-            else torch.empty((0, 2), dtype=torch.long, device=device)
-        )
-        edge_types = (
-            _to_tensor(encoding.edge_types, dtype=torch.long, device=device)
-            if encoding.edge_types
-            else torch.empty((0,), dtype=torch.long, device=device)
-        )
+        if isinstance(encoding, TensorGraphEncoding):
+            if encoding.node_features.numel() == 0:
+                raise ValueError("Encoding has no node features.")
+            node_feats = encoding.node_features.to(device)
+            type_ids = encoding.node_types.to(device)
+            edge_index = encoding.edge_index.to(device)
+            edge_types = encoding.edge_types.to(device)
+        else:
+            if not encoding.node_features:
+                raise ValueError("Encoding has no node features.")
+            node_feats = _to_tensor(encoding.node_features, dtype=torch.float32, device=device)
+            type_ids = _to_tensor(encoding.node_types, dtype=torch.long, device=device)
+            edge_index = (
+                _to_tensor(encoding.edge_index, dtype=torch.long, device=device)
+                if encoding.edge_index
+                else torch.empty((0, 2), dtype=torch.long, device=device)
+            )
+            edge_types = (
+                _to_tensor(encoding.edge_types, dtype=torch.long, device=device)
+                if encoding.edge_types
+                else torch.empty((0,), dtype=torch.long, device=device)
+            )
         if edge_types.numel() > 0 and int(torch.max(edge_types)) >= len(self.gnn_layers[0].rel_linears):  # type: ignore
             raise ValueError("Edge type ID exceeds configured capacity for the GNN.")
 
@@ -147,7 +156,7 @@ class GraphGNNRanker(nn.Module):
         score = self.graph_mlp(graph_repr).squeeze(-1)
         return RankerOutput(score=score, attribution=attn_weights)
 
-    def score_pair(self, better: GraphEncoding, worse: GraphEncoding) -> tuple[torch.Tensor, torch.Tensor]:
+    def score_pair(self, better: GraphEncoding | TensorGraphEncoding, worse: GraphEncoding | TensorGraphEncoding) -> tuple[torch.Tensor, torch.Tensor]:
         out_better = self.forward(better)
         out_worse = self.forward(worse)
         return out_better.score, out_worse.score

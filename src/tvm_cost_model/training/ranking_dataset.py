@@ -10,14 +10,14 @@ from dataclasses import dataclass
 # from tvm_cost_model.features.graph_encoder import GraphEncoder, GraphEncoding
 # from tvm_cost_model.training.pair_sampling import make_ranking_pairs
 
-from tvm_cost_model.features.graph_encoder import GraphEncoding
+from tvm_cost_model.features.graph_encoder import GraphEncoding, TensorGraphEncoding
 
 @dataclass
 class EncodedPair:
     """Pair of encoded graphs with metadata for ranking losses."""
 
-    better: GraphEncoding
-    worse: GraphEncoding
+    better: GraphEncoding | TensorGraphEncoding
+    worse: GraphEncoding | TensorGraphEncoding
     difficulty: str
 
 
