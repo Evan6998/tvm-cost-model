@@ -78,14 +78,14 @@ def sample_ranking_pairs(
     pairs: List[RankedPair] = []
 
     grouped_by_key = _group_measurements_by_key(measurements)
-    for key, group in grouped_by_key.items():
-        operator, shape_key, target, hardware_id = key
-        print(
-            f"Pair sampling group size={len(group)} "
-            f"operator={operator} "
-            f"shape={_shape_key_to_str(shape_key)} "
-            f"target={target} hardware_id={hardware_id}"
-        )
+    # for key, group in grouped_by_key.items():
+    #     operator, shape_key, target, hardware_id = key
+    #     print(
+    #         f"Pair sampling group size={len(group)} "
+    #         f"operator={operator} "
+    #         f"shape={_shape_key_to_str(shape_key)} "
+    #         f"target={target} hardware_id={hardware_id}"
+    #     )
 
     grouped = [group for group in grouped_by_key.values() if len(group) >= 2]
     if not grouped:
@@ -137,11 +137,11 @@ def _workload_shape_key(workload_shape: Dict[str, tuple[int, ...]] | None) -> Tu
     return tuple(sorted((name, tuple(dimensions)) for name, dimensions in workload_shape.items()))
 
 
-def _shape_key_to_str(shape_key: Tuple[Tuple[str, Tuple[int, ...]], ...]) -> str:
-    if not shape_key:
-        return "{}"
-    parts = [f"{name}:{'x'.join(str(d) for d in dims)}" for name, dims in shape_key]
-    return "{" + ", ".join(parts) + "}"
+# def _shape_key_to_str(shape_key: Tuple[Tuple[str, Tuple[int, ...]], ...]) -> str:
+#     if not shape_key:
+#         return "{}"
+#     parts = [f"{name}:{'x'.join(str(d) for d in dims)}" for name, dims in shape_key]
+#     return "{" + ", ".join(parts) + "}"
 
 
 def _pair_key(measurement: MeasurementRecord) -> PairKey:

@@ -6,6 +6,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Sequence
 
+import torch
+
 from tvm_cost_model.features.graph_builder import ProgramGraph
 
 
@@ -16,6 +18,15 @@ class GraphEncoding:
     edge_index: list[tuple[int, int]]
     edge_types: list[int]
     feature_names: list[str] = field(default_factory=list[str])
+
+
+@dataclass
+class TensorGraphEncoding:
+    node_features: torch.Tensor
+    node_types: torch.Tensor
+    edge_index: torch.Tensor
+    edge_types: torch.Tensor
+    feature_names: list[str]
 
 
 class GraphEncoder:
@@ -103,3 +114,26 @@ class GraphEncoder:
                 feature_names.update(node.attrs.keys())
         self.feature_names = sorted(feature_names)
         return self.feature_names
+
+    def to_tensor_encoding(self, encoding: GraphEncoding, device: torch.device) -> TensorGraphEncoding:
+        """Convert a GraphEncoding into tensor form on the given device."""
+
+        node_features = torch.tensor(encoding.node_features, dtype=torch.float32, device=device)
+        node_types = torch.tensor(encoding.node_types, dtype=torch.long, device=device)
+        edge_index = (
+            torch.tensor(encoding.edge_index, dtype=torch.long, device=device)
+            if encoding.edge_index
+            else torch.empty((0, 2), dtype=torch.long, device=device)
+        )
+        edge_types = (
+            torch.tensor(encoding.edge_types, dtype=torch.long, device=device)
+            if encoding.edge_types
+            else torch.empty((0,), dtype=torch.long, device=device)
+        )
+        return TensorGraphEncoding(
+            node_features=node_features,
+            node_types=node_types,
+            edge_index=edge_index,
+            edge_types=edge_types,
+            feature_names=encoding.feature_names,
+        )
