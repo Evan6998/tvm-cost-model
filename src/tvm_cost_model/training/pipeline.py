@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Sequence
 
 from tvm_cost_model.data.dataset_builder import MeasurementRecord
 from tvm_cost_model.models.graph_cost_model import GraphCostModel, Prediction
@@ -12,6 +12,7 @@ from tvm_cost_model.training.pair_sampling import Difficulty, sample_ranking_pai
 from tvm_cost_model.training.ranking_dataset import EncodedPair
 from tvm_cost_model.features.tvm_graph_builder import TVMGraphBuilder
 from tvm_cost_model.features.graph_builder import GraphBuilder, ProgramGraph
+from tvm_cost_model.integration.utils import measurement_to_score
 
 
 def _default_builder() -> GraphBuilder:
@@ -47,11 +48,11 @@ class TrainingPipeline:
             weight_decay=self.config.weight_decay,
         )
 
-    def fit(self, tir_modules: Iterable[str], scores: Iterable[float]) -> None:
+    def fit(self, tir_modules: Iterable[Any], scores: Iterable[float]) -> None:
         graphs = [self._build_graph(tir) for tir in tir_modules]
         self.model.update(graphs, list(scores))
 
-    def predict(self, tir_module: str) -> Prediction:
+    def predict(self, tir_module: Any) -> Prediction:
         graph = self._build_graph(tir_module)
         return self.model.predict(graph)
 
@@ -161,5 +162,16 @@ class TrainingPipeline:
 
         return total_trained_pairs
 
-    def _build_graph(self, tir_module: str) -> ProgramGraph:
+    def _build_graph(self, tir_module: Any) -> ProgramGraph:
         return self.builder.build(tir_module)
+
+    def fit_pointwise_measurements(self, measurements: Sequence[MeasurementRecord]) -> int:
+        """Pointwise regression training from MeasurementRecords."""
+
+        if not measurements:
+            return 0
+        graphs = [self._build_graph(m.scheduled_tir or m.original_tir) for m in measurements]
+        scores = [measurement_to_score(m.runtime_ms) for m in measurements]
+        self.model.encoder.prime_feature_names(graphs)
+        self.model.update(graphs, scores)
+        return len(graphs)
