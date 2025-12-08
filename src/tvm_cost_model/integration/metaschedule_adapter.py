@@ -9,12 +9,14 @@ import numpy as np
 from tvm.meta_schedule import MeasureCandidate  # type: ignore[import]
 from tvm.meta_schedule.cost_model import PyCostModel  # type: ignore[import]
 from tvm.meta_schedule.runner import RunnerResult  # type: ignore[import]
+from tvm.meta_schedule import utils as ms_utils  # type: ignore[import]
 
 from tvm_cost_model.data.dataset_builder import MeasurementRecord
 from tvm_cost_model.integration.utils import candidate_to_tir, pack_measurements
 from tvm_cost_model.training.pipeline import TrainingConfig, TrainingPipeline
 
 
+@ms_utils.derived_object
 class GraphPyCostModel(PyCostModel):
     """PyCostModel-compatible wrapper around the GraphCostModel pipeline."""
 
@@ -81,18 +83,16 @@ class GraphPyCostModel(PyCostModel):
         self._pending_measurements.clear()
 
 
-class MetaScheduleAdapter(GraphPyCostModel):
+def MetaScheduleAdapter(
+    config: TrainingConfig | None = None,
+    buffer_size: int = 256,
+    pointwise_fallback: bool = True,
+):
     """Deprecated alias; use GraphPyCostModel directly."""
 
-    def __init__(
-        self,
-        config: TrainingConfig | None = None,
-        buffer_size: int = 256,
-        pointwise_fallback: bool = True,
-    ) -> None:
-        warnings.warn(
-            "MetaScheduleAdapter is deprecated; use GraphPyCostModel which matches PyCostModel APIs.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(config=config, buffer_size=buffer_size, pointwise_fallback=pointwise_fallback)
+    warnings.warn(
+        "MetaScheduleAdapter is deprecated; use GraphPyCostModel which matches PyCostModel APIs.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return GraphPyCostModel(config=config, buffer_size=buffer_size, pointwise_fallback=pointwise_fallback)
