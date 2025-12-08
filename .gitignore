@@ -22,3 +22,6 @@ dist/
 artifacts/
 logs/
 outputs/
+
+# Dot files
+*.dot

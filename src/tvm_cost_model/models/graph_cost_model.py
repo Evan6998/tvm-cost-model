@@ -11,7 +11,11 @@ import torch
 import torch.nn as nn
 
 from tvm_cost_model.features.graph_builder import ProgramGraph
-from tvm_cost_model.features.graph_encoder import GraphEncoder
+from tvm_cost_model.features.graph_encoder import (
+    GraphEncoding,
+    TensorGraphEncoding,
+    GraphEncoder,
+)
 from tvm_cost_model.models.graph_gnn_ranker import GraphGNNRanker, RankerOutput
 from tvm_cost_model.training.ranking_dataset import EncodedPair
 
@@ -48,15 +52,33 @@ class GraphCostModel:
         self._margin_loss = nn.MarginRankingLoss(margin=margin)
 
     def predict(self, graph: ProgramGraph) -> Prediction:
-        """Encode a graph and run it through the ranker."""
+        """Encode a ProgramGraph and run it through the ranker."""
 
         encoding = self.encoder.encode(graph)
+        node_labels = [node.name for node in graph.nodes]
+        return self.predict_from_encoding(encoding, node_labels=node_labels)
+
+    def predict_from_encoding(
+        self,
+        encoding: GraphEncoding | TensorGraphEncoding,
+        node_labels: Sequence[str] | None = None,
+    ) -> Prediction:
+        """Run an already encoded graph through the ranker.
+
+        This is useful when graph structure/features are built outside of
+        :class:`ProgramGraph`, e.g. per-store graphs using TVM's built-in
+        feature extractors.
+        """
+
         self._ensure_model(len(encoding.feature_names))
         assert self._model is not None
         self._model.eval()
         with torch.no_grad():
             output: RankerOutput = self._model(encoding)
-        attribution = {node.name: float(weight.detach().item()) for node, weight in zip(graph.nodes, output.attribution)}
+        weights = output.attribution.detach().cpu()
+        if node_labels is None:
+            node_labels = [f"node_{i}" for i in range(len(weights))]
+        attribution = {label: float(w.item()) for label, w in zip(node_labels, weights)}
         return Prediction(score=float(output.score.detach().item()), attribution=attribution)
 
     def update(self, graphs: Sequence[ProgramGraph], scores: Sequence[float]) -> None:
