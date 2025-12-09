@@ -96,6 +96,12 @@ class TrainingPipeline:
             with tqdm(total=len(measurements), desc="Building per-store encodings", unit="graph") as pbar:
                 for m in measurements:
                     tir_str = m.scheduled_tir or m.original_tir
+                    # Some datasets may contain TIR serialized with newer dtypes like
+                    # "bool8" while the current TVM/TVM-FFI build only recognizes
+                    # "bool". For feature extraction and graph construction, this
+                    # distinction is irrelevant, so we normalize here for
+                    # compatibility with older TVM builds.
+                    tir_str = tir_str.replace("bool8", "bool")
                     try:
                         mod = from_source(tir_str)
                     except Exception as exc:  # pylint: disable=broad-except
