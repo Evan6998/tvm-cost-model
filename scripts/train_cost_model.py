@@ -22,6 +22,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weight-decay", type=float, default=0.0, help="Weight decay for optimizer")
     parser.add_argument("--pair-seed", type=int, default=0, help="Seed for pair sampling")
     parser.add_argument("--output", type=str, default="", help="Path to save the trained model (torch format)")
+    parser.add_argument(
+        "--features",
+        type=str,
+        choices=["tvm-graph", "per-store"],
+        default="tvm-graph",
+        help="Feature pipeline to use: 'tvm-graph' (TVMGraphBuilder) or 'per-store'.",
+    )
+    parser.add_argument(
+        "--metrics-log",
+        type=str,
+        default="",
+        help="Optional CSV file path to append per-epoch train/val metrics.",
+    )
     return parser
 
 
@@ -37,6 +50,8 @@ def main() -> None:
         margin=args.margin,
         weight_decay=args.weight_decay,
         pair_seed=args.pair_seed,
+        feature_mode=args.features,
+        metrics_path=args.metrics_log or None,
     )
     pipeline = TrainingPipeline(config=config)
 

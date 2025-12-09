@@ -7,6 +7,7 @@ from tvm_cost_model.features.per_store_graph import (
     build_per_store_graph,
     encode_per_store_graph,
     enumerate_buffer_stores,
+    expand_per_buffer_features_to_per_store,
 )
 
 
@@ -112,3 +113,18 @@ def test_encode_per_store_graph_empty_features():
     assert enc.edge_index == []
     assert enc.edge_types == []
 
+
+def test_expand_per_buffer_features_to_per_store():
+    g = build_per_store_graph(TwoStores)
+    stores = g.stores
+    # PerStoreFeature would produce one row per written buffer (B and C)
+    per_buffer_feat = np.array(
+        [[1.0, 10.0],  # buffer B
+         [2.0, 20.0]],  # buffer C
+        dtype="float32",
+    )
+    per_store_feat = expand_per_buffer_features_to_per_store(stores, per_buffer_feat)
+    assert per_store_feat.shape == (len(stores), per_buffer_feat.shape[1])
+    # First store writes B, second writes C, so rows should match
+    assert np.allclose(per_store_feat[0], per_buffer_feat[0])
+    assert np.allclose(per_store_feat[1], per_buffer_feat[1])

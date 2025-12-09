@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
+import csv
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence, Any
+from typing import Any, Sequence
 
 import torch
 import torch.nn as nn
 
 from tvm_cost_model.features.graph_builder import ProgramGraph
-from tvm_cost_model.features.graph_encoder import (
-    GraphEncoding,
-    TensorGraphEncoding,
-    GraphEncoder,
-)
+from tvm_cost_model.features.graph_encoder import GraphEncoder, GraphEncoding, TensorGraphEncoding
 from tvm_cost_model.models.graph_gnn_ranker import GraphGNNRanker, RankerOutput
 from tvm_cost_model.training.ranking_dataset import EncodedPair
 
@@ -112,6 +109,7 @@ class GraphCostModel:
         val_split: float = 0.2,
         show_progress: bool = True,
         stage_name: str | None = None,
+        metrics_log_path: str | None = None,
     ) -> float:
         """Train on encoded ranking pairs using a margin ranking loss.
 
@@ -172,9 +170,68 @@ class GraphCostModel:
                     f"train_loss={train_loss / max(train_count, 1):.4f} train_acc={train_acc:.3f} | "
                     f"val_loss={(val_loss / max(val_count, 1)):.4f} val_acc={val_acc:.3f}"
                 )
+            if metrics_log_path is not None:
+                self._append_metrics(
+                    metrics_log_path,
+                    stage_name or "",
+                    epoch + 1,
+                    epochs,
+                    train_count,
+                    train_loss / max(train_count, 1),
+                    train_acc,
+                    val_count,
+                    val_loss / max(val_count, 1),
+                    val_acc,
+                )
 
         self._is_trained = True
         return avg_loss / max(steps, 1)
+
+    def _append_metrics(
+        self,
+        path: str | Path,
+        stage: str,
+        epoch: int,
+        total_epochs: int,
+        train_count: int,
+        train_loss: float,
+        train_acc: float,
+        val_count: int,
+        val_loss: float,
+        val_acc: float,
+    ) -> None:
+        path = Path(path)
+        write_header = not path.exists()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            if write_header:
+                writer.writerow(
+                    [
+                        "stage",
+                        "epoch",
+                        "total_epochs",
+                        "train_count",
+                        "train_loss",
+                        "train_acc",
+                        "val_count",
+                        "val_loss",
+                        "val_acc",
+                    ]
+                )
+            writer.writerow(
+                [
+                    stage,
+                    epoch,
+                    total_epochs,
+                    train_count,
+                    train_loss,
+                    train_acc,
+                    val_count,
+                    val_loss,
+                    val_acc,
+                ]
+            )
 
     def save(self, path: str | Path) -> None:
         """Persist the ranker weights and encoder state to ``path``.

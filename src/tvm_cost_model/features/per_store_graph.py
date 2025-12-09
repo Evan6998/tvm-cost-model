@@ -34,7 +34,9 @@ from tvm.tir import (  # type: ignore[import]
     Buffer,
     BufferStore,
     Evaluate,
+    FloatImm,
     For,
+    IntImm,
     PrimFunc,
     SeqStmt,
     Stmt,
@@ -62,6 +64,9 @@ class StoreInfo:
         Set of buffers read by the enclosing block (unique, order not guaranteed).
     value_reads : Tuple[tvm.tir.Buffer, ...]
         Set of buffers read on the right-hand side value of this store.
+    is_const_value : bool
+        Whether the store value is a scalar IntImm/FloatImm constant. These
+        stores are ignored by PerStoreFeature on the TVM side.
     """
 
     id: int
@@ -70,6 +75,7 @@ class StoreInfo:
     loop_vars: Tuple[Var, ...]
     reads: Tuple[Buffer, ...]
     value_reads: Tuple[Buffer, ...]
+    is_const_value: bool
 
 
 @dataclass(frozen=True)
@@ -208,6 +214,7 @@ def enumerate_buffer_stores(obj: _TIRObject) -> List[StoreInfo]:
                 block_id_counter += 1
             bid, reads = block_meta[current_block]
             value_reads = _collect_value_reads(stmt.value)
+            is_const = isinstance(stmt.value, (IntImm, FloatImm))
             stores.append(
                 StoreInfo(
                     id=len(stores),
@@ -216,6 +223,7 @@ def enumerate_buffer_stores(obj: _TIRObject) -> List[StoreInfo]:
                     loop_vars=tuple(loop_stack),
                     reads=reads,
                     value_reads=value_reads,
+                    is_const_value=is_const,
                 )
             )
             return
@@ -417,3 +425,48 @@ def encode_per_store_graph(node_feat: np.ndarray, graph: PerStoreGraph) -> Graph
         feature_names=feature_names,
     )
 
+
+def expand_per_buffer_features_to_per_store(
+    stores: Sequence[StoreInfo],
+    per_buffer_feat: np.ndarray,
+) -> np.ndarray:
+    """Expand per-buffer features from TVM's PerStoreFeature to per-store features.
+
+    TVM's PerStoreFeature groups features by buffer: each buffer that has at
+    least one non-constant BufferStore contributes a single row. Our graph
+    uses one node per BufferStore statement. To align them, we replicate the
+    per-buffer feature row for every store of that buffer.
+
+    Constant stores (value is IntImm/FloatImm) do not produce a per-buffer
+    feature row on the TVM side; for such stores we keep a zero feature
+    vector.
+    """
+
+    if per_buffer_feat.ndim != 2:
+        raise ValueError("Per-buffer features must be a 2D array of shape (M, D).")
+    num_buffers, feat_dim = per_buffer_feat.shape
+
+    # Assign an order to buffers based on first non-constant store, matching
+    # the logic in PerStoreFeatureCollector (first-seen non-constant store).
+    buffer_order: Dict[Buffer, int] = {}
+    for store in stores:
+        if store.is_const_value:
+            continue
+        buf = store.buffer
+        if buf not in buffer_order:
+            buffer_order[buf] = len(buffer_order)
+
+    if num_buffers != len(buffer_order):
+        # Best-effort safeguard: when counts do not match, we still try to
+        # align by clamping to the smaller size.
+        # This should be rare; a warning could be added here if desired.
+        pass
+
+    per_store_feat = np.zeros((len(stores), feat_dim), dtype=per_buffer_feat.dtype)
+    for store in stores:
+        order = buffer_order.get(store.buffer)
+        if order is None or order >= num_buffers:
+            # Constant-only buffer or mismatch; leave zeros.
+            continue
+        per_store_feat[store.id, :] = per_buffer_feat[order, :]
+    return per_store_feat

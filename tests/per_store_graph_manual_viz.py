@@ -27,6 +27,7 @@ from tvm.meta_schedule.tune_context import TuneContext  # type: ignore[import]
 from tvm_cost_model.features.per_store_graph import (
     build_per_store_graph,
     enumerate_buffer_stores,
+    expand_per_buffer_features_to_per_store,
 )
 from tvm_cost_model.features.per_store_viz import (
     per_store_graph_to_dot,
@@ -170,24 +171,19 @@ def _run_one(mod_name: str, mod: tvm.IRModule, out_path: str) -> None:
     ctx = TuneContext(mod=mod, target="llvm", num_threads=1)
 
     extractor = FeatureExtractor.create("per-store-feature")
-    node_feat = _extract_per_store_features(ctx, cand, extractor)
+    per_buffer_feat = _extract_per_store_features(ctx, cand, extractor)
 
     graph = build_per_store_graph(mod)
     stores = enumerate_buffer_stores(mod)
+    per_store_feat = expand_per_buffer_features_to_per_store(stores, per_buffer_feat)
 
-    if node_feat.shape[0] != len(stores):
-        raise RuntimeError(
-            f"Number of BufferStores ({len(stores)}) mismatches feature rows {node_feat.shape[0]} "
-            f"for workload '{mod_name}'."
-        )
-
-    print(f"#nodes={node_feat.shape[0]}, #edges={graph.edge_index.shape[1]}")
+    print(f"#nodes={per_store_feat.shape[0]}, #edges={graph.edge_index.shape[1]}")
     print("edge types:", graph.type_vocab)
 
     print("\nPer-node features:")
-    print_node_features(node_feat, stores=stores)
+    print_node_features(per_store_feat, stores=stores)
 
-    per_store_graph_to_dot(node_feat, graph, out=out_path, stores=stores)
+    per_store_graph_to_dot(per_store_feat, graph, out=out_path, stores=stores)
     print(f"DOT graph written to: {out_path}")
     print()
 
@@ -226,4 +222,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
