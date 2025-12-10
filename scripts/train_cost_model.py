@@ -35,6 +35,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Optional CSV file path to append per-epoch train/val metrics.",
     )
+    parser.add_argument(
+        "--curriculum",
+        action="store_true",
+        help="Enable curriculum training (easy/medium/hard stages). "
+        "Disabled by default in this branch.",
+    )
     return parser
 
 
@@ -52,6 +58,7 @@ def main() -> None:
         pair_seed=args.pair_seed,
         feature_mode=args.features,
         metrics_path=args.metrics_log or None,
+        curriculum=args.curriculum,
     )
     pipeline = TrainingPipeline(config=config)
 
