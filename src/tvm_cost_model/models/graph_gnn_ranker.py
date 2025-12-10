@@ -87,9 +87,9 @@ class GraphGNNRanker(nn.Module):
         self.encoder_norm = nn.LayerNorm(hidden_dim)
         self.encoder_dropout = nn.Dropout(dropout)
 
-        # Two-layer relational GraphSAGE stack.
+        # Relational GraphSAGE stack.
         self.gnn_layers = nn.ModuleList(
-            [RelationalGraphSAGELayer(hidden_dim, num_edge_types, dropout=dropout) for _ in range(2)]
+            [RelationalGraphSAGELayer(hidden_dim, num_edge_types, dropout=dropout) for _ in range(3)]
         )
 
         # Attention pooling.

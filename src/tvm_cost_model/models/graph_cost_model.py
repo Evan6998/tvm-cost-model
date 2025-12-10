@@ -31,7 +31,7 @@ class GraphCostModel:
         learning_rate: float = 1e-3,
         margin: float = 0.1,
         weight_decay: float = 1e-4,
-        hidden_dim: int = 64,
+        hidden_dim: int = 128,
         device: torch.device | str | None = None,
     ) -> None:
         self._is_trained = False
