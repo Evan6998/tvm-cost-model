@@ -31,7 +31,7 @@ class GraphCostModel:
         learning_rate: float = 1e-3,
         margin: float = 0.1,
         weight_decay: float = 1e-4,
-        hidden_dim: int = 64,
+        hidden_dim: int = 128,
         device: torch.device | str | None = None,
     ) -> None:
         self._is_trained = False
@@ -126,9 +126,39 @@ class GraphCostModel:
 
         pairs_list = list(pairs)
         random.shuffle(pairs_list)
-        split_idx = max(1, int(len(pairs_list) * (1 - val_split)))
-        train_pairs = pairs_list[:split_idx]
-        val_pairs = pairs_list[split_idx:] if split_idx < len(pairs_list) else []
+
+        # Build a validation set that, when possible, has a balanced mix of
+        # EASY / MEDIUM / HARD difficulties. Remaining pairs go to training.
+        target_val = max(1, int(len(pairs_list) * val_split))
+        by_diff: dict[str, list[EncodedPair]] = {"EASY": [], "MEDIUM": [], "HARD": []}
+        other: list[EncodedPair] = []
+        for pair in pairs_list:
+            diff = getattr(pair, "difficulty", "")
+            if diff in by_diff:
+                by_diff[diff].append(pair)
+            else:
+                other.append(pair)
+        for group in by_diff.values():
+            random.shuffle(group)
+        val_pairs: list[EncodedPair] = []
+        per_group_target = target_val // 3 if target_val >= 3 else 0
+        if per_group_target > 0:
+            for name in ("EASY", "MEDIUM", "HARD"):
+                group = by_diff[name]
+                if not group:
+                    continue
+                take = min(per_group_target, len(group))
+                val_pairs.extend(group[:take])
+                by_diff[name] = group[take:]
+        remaining: list[EncodedPair] = []
+        for group in by_diff.values():
+            remaining.extend(group)
+        remaining.extend(other)
+        random.shuffle(remaining)
+        while len(val_pairs) < target_val and remaining:
+            val_pairs.append(remaining.pop())
+        val_ids = {id(p) for p in val_pairs}
+        train_pairs = [p for p in pairs_list if id(p) not in val_ids]
 
         avg_loss = 0.0
         steps = 0
@@ -160,7 +190,14 @@ class GraphCostModel:
                 steps += 1
                 train_loss += float(loss.detach())
 
-            val_loss, val_correct, val_count = self._evaluate_pairs(val_pairs)
+            (
+                val_loss,
+                val_correct,
+                val_count,
+                per_diff_loss,
+                per_diff_correct,
+                per_diff_count,
+            ) = self._evaluate_pairs(val_pairs)
             train_acc = (train_correct / train_count) if train_count else 0.0
             val_acc = (val_correct / val_count) if val_count else 0.0
             if show_progress:
@@ -170,6 +207,24 @@ class GraphCostModel:
                     f"train_loss={train_loss / max(train_count, 1):.4f} train_acc={train_acc:.3f} | "
                     f"val_loss={(val_loss / max(val_count, 1)):.4f} val_acc={val_acc:.3f}"
                 )
+                if val_count:
+                    def _stats(name: str) -> tuple[float, float, int]:
+                        count = per_diff_count.get(name, 0)
+                        if count <= 0:
+                            return 0.0, 0.0, 0
+                        loss_avg = per_diff_loss.get(name, 0.0) / max(count, 1)
+                        acc = (per_diff_correct.get(name, 0) / count) if count else 0.0
+                        return loss_avg, acc, count
+
+                    easy_loss, easy_acc, easy_n = _stats("EASY")
+                    medium_loss, medium_acc, medium_n = _stats("MEDIUM")
+                    hard_loss, hard_acc, hard_n = _stats("HARD")
+                    print(
+                        f"{prefix}Val by difficulty | "
+                        f"EASY:   n={easy_n:5d} loss={easy_loss:.4f} acc={easy_acc:.3f} | "
+                        f"MEDIUM: n={medium_n:5d} loss={medium_loss:.4f} acc={medium_acc:.3f} | "
+                        f"HARD:   n={hard_n:5d} loss={hard_loss:.4f} acc={hard_acc:.3f}"
+                    )
             if metrics_log_path is not None:
                 self._append_metrics(
                     metrics_log_path,
@@ -326,12 +381,17 @@ class GraphCostModel:
             if self._optimizer is not None:
                 _move_optimizer_state(self._optimizer, self.device)
 
-    def _evaluate_pairs(self, pairs: Sequence[EncodedPair]) -> tuple[float, int, int]:
+    def _evaluate_pairs(
+        self, pairs: Sequence[EncodedPair]
+    ) -> tuple[float, int, int, dict[str, float], dict[str, int], dict[str, int]]:
         if not pairs or self._model is None:
-            return 0.0, 0, 0
+            return 0.0, 0, 0, {}, {}, {}
         total_loss = 0.0
         correct = 0
         count = 0
+        per_diff_loss: dict[str, float] = {}
+        per_diff_correct: dict[str, int] = {}
+        per_diff_count: dict[str, int] = {}
         prev_training = self._model.training
         self._model.eval()
         with torch.no_grad():
@@ -344,11 +404,18 @@ class GraphCostModel:
                     target.unsqueeze(0),
                 )
                 total_loss += float(loss.detach())
+                diff_name = getattr(pair, "difficulty", "")
+                if diff_name:
+                    per_diff_loss[diff_name] = per_diff_loss.get(diff_name, 0.0) + float(loss.detach())
+                    per_diff_correct[diff_name] = per_diff_correct.get(diff_name, 0) + int(
+                        (better_score > worse_score).item()
+                    )
+                    per_diff_count[diff_name] = per_diff_count.get(diff_name, 0) + 1
                 correct += int((better_score > worse_score).item())
                 count += 1
         if prev_training:
             self._model.train()
-        return total_loss, correct, count
+        return total_loss, correct, count, per_diff_loss, per_diff_correct, per_diff_count
 
 
 def _select_device() -> torch.device:

@@ -25,3 +25,8 @@ outputs/
 
 # Dot files
 *.dot
+
+# Local experiment notes
+local_experiment_plan.md
+
+mlsys2025style/
