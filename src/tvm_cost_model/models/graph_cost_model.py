@@ -62,8 +62,9 @@ class GraphCostModel:
             self._listnet_loss = ListNetPairwiseLoss(temperature=0.5)
         if use_adaptive_margin:
             self._adaptive_loss = AdaptiveMarginRankingLoss(base_margin=0.05, margin_scale=0.5)
-        else:
-            self._margin_loss = nn.MarginRankingLoss(margin=margin)
+        
+        # Always keep a basic margin loss for evaluation
+        self._margin_loss = nn.MarginRankingLoss(margin=margin)
 
     def predict(self, graph: ProgramGraph) -> Prediction:
         """Encode a graph and run it through the ranker."""

@@ -7,7 +7,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from tvm_cost_model.data.dataset_builder import load_measurements
+from tvm_cost_model.data.dataset_builder import load_measurement_records
 from tvm_cost_model.training.pipeline import TrainingConfig, TrainingPipeline
 
 
@@ -20,7 +20,7 @@ def main():
         sys.exit(1)
     
     print(f"Loading dataset from {dataset_path}...")
-    measurements = load_measurements(str(dataset_path))
+    measurements = load_measurement_records(dataset_path)
     print(f"Loaded {len(measurements)} measurements")
     
     # Configuration: FOCUS ON HARD PAIRS ONLY
