@@ -48,6 +48,9 @@ class TrainingPipeline:
             learning_rate=self.config.learning_rate,
             margin=self.config.margin,
             weight_decay=self.config.weight_decay,
+            use_listnet=True,  # Enable ListNet loss
+            use_adaptive_margin=True,  # Enable adaptive margins
+            hard_pair_reweight=True,  # Enable hard pair reweighting
         )
         if self.model.device.type != "cpu":
             print(f"Using device: {self.model.device}")
@@ -102,7 +105,13 @@ class TrainingPipeline:
                 if better_enc is None or worse_enc is None:
                     continue
                 encoded_pairs.append(
-                    EncodedPair(better=better_enc, worse=worse_enc, difficulty=pair.difficulty.name)
+                    EncodedPair(
+                        better=better_enc,
+                        worse=worse_enc,
+                        difficulty=pair.difficulty.name,
+                        better_runtime=pair.better.runtime_ms,
+                        worse_runtime=pair.worse.runtime_ms,
+                    )
                 )
             return encoded_pairs
 

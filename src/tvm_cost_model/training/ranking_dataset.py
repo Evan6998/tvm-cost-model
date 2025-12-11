@@ -19,6 +19,8 @@ class EncodedPair:
     better: GraphEncoding | TensorGraphEncoding
     worse: GraphEncoding | TensorGraphEncoding
     difficulty: str
+    better_runtime: float = 0.0  # NEW: Runtime of better schedule (ms)
+    worse_runtime: float = 0.0   # NEW: Runtime of worse schedule (ms)
 
 
 # def build_encoded_pairs(

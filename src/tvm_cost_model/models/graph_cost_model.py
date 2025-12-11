@@ -14,6 +14,11 @@ from tvm_cost_model.features.graph_builder import ProgramGraph
 from tvm_cost_model.features.graph_encoder import GraphEncoder
 from tvm_cost_model.models.graph_gnn_ranker import GraphGNNRanker, RankerOutput
 from tvm_cost_model.training.ranking_dataset import EncodedPair
+from tvm_cost_model.training.losses import (
+    ListNetPairwiseLoss,
+    AdaptiveMarginRankingLoss,
+    compute_hard_pair_weight,
+)
 
 
 @dataclass
@@ -32,6 +37,9 @@ class GraphCostModel:
         weight_decay: float = 1e-4,
         hidden_dim: int = 64,
         device: torch.device | str | None = None,
+        use_listnet: bool = True,  # NEW: Use ListNet loss
+        use_adaptive_margin: bool = True,  # NEW: Use adaptive margins
+        hard_pair_reweight: bool = True,  # NEW: Reweight hard pairs
     ) -> None:
         self._is_trained = False
         self.encoder = GraphEncoder()
@@ -39,13 +47,23 @@ class GraphCostModel:
         self.margin = margin
         self.weight_decay = weight_decay
         self.hidden_dim = hidden_dim
+        self.use_listnet = use_listnet
+        self.use_adaptive_margin = use_adaptive_margin
+        self.hard_pair_reweight = hard_pair_reweight
         self.device = torch.device(device) if device is not None else _select_device()
         self._model: GraphGNNRanker | None = None
         self._optimizer: torch.optim.Optimizer | None = None
         self._feature_dim: int | None = None
         self._node_type_capacity: int = 0
         self._edge_type_capacity: int = 0
-        self._margin_loss = nn.MarginRankingLoss(margin=margin)
+        
+        # Loss functions
+        if use_listnet:
+            self._listnet_loss = ListNetPairwiseLoss(temperature=0.5)
+        if use_adaptive_margin:
+            self._adaptive_loss = AdaptiveMarginRankingLoss(base_margin=0.05, margin_scale=0.5)
+        else:
+            self._margin_loss = nn.MarginRankingLoss(margin=margin)
 
     def predict(self, graph: ProgramGraph) -> Prediction:
         """Encode a graph and run it through the ranker."""
@@ -119,20 +137,64 @@ class GraphCostModel:
             train_count = 0
             for start in range(0, len(train_pairs), batch_size):
                 batch = train_pairs[start : start + batch_size]
-                batch_losses: list[torch.Tensor] = []
-                for pair in batch:
-                    better_score, worse_score = self._model.score_pair(pair.better, pair.worse)
-                    target = torch.ones_like(better_score)
-                    batch_losses.append(
-                        self._margin_loss(
-                            better_score.unsqueeze(0),
-                            worse_score.unsqueeze(0),
-                            target.unsqueeze(0),
-                        )
+                
+                # Use ListNet loss over batches
+                if self.use_listnet and len(batch) > 1:
+                    better_scores = []
+                    worse_scores = []
+                    better_runtimes = []
+                    worse_runtimes = []
+                    
+                    for pair in batch:
+                        better_score, worse_score = self._model.score_pair(pair.better, pair.worse)
+                        better_scores.append(better_score)
+                        worse_scores.append(worse_score)
+                        better_runtimes.append(pair.better_runtime)
+                        worse_runtimes.append(pair.worse_runtime)
+                        train_correct += int((better_score > worse_score).item())
+                        train_count += 1
+                    
+                    loss = self._listnet_loss(
+                        torch.stack(better_scores),
+                        torch.stack(worse_scores),
+                        torch.tensor(better_runtimes, device=self.device),
+                        torch.tensor(worse_runtimes, device=self.device),
                     )
-                    train_correct += int((better_score > worse_score).item())
-                    train_count += 1
-                loss = torch.stack(batch_losses).mean()
+                else:
+                    # Fallback to pairwise loss for small batches
+                    batch_losses: list[torch.Tensor] = []
+                    for pair in batch:
+                        better_score, worse_score = self._model.score_pair(pair.better, pair.worse)
+                        
+                        # Apply hard pair reweighting
+                        weight = 1.0
+                        if self.hard_pair_reweight:
+                            weight = compute_hard_pair_weight(
+                                pair.better_runtime,
+                                pair.worse_runtime,
+                                hard_threshold=0.15
+                            )
+                        
+                        # Use adaptive margin or fixed margin
+                        if self.use_adaptive_margin:
+                            pair_loss = self._adaptive_loss(
+                                better_score, worse_score,
+                                pair.better_runtime, pair.worse_runtime
+                            )
+                        else:
+                            target = torch.ones_like(better_score)
+                            pair_loss = self._margin_loss(
+                                better_score.unsqueeze(0),
+                                worse_score.unsqueeze(0),
+                                target.unsqueeze(0),
+                            )
+                        
+                        batch_losses.append(pair_loss * weight)
+                        train_correct += int((better_score > worse_score).item())
+                        train_count += 1
+                    
+                    loss = torch.stack(batch_losses).mean()
+                
                 self._optimizer.zero_grad()
                 loss.backward()  # type: ignore
                 self._optimizer.step()
