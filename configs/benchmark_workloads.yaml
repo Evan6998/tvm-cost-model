@@ -6,11 +6,11 @@ targets:
     device_type: cpu
     num_threads: 8
     work_dir: artifacts/tuning/cpu
-  cuda_sm80:
-    target: "cuda -arch=sm_80"
+  cuda_sm75:
+    target: "cuda -arch sm_75 -max_threads_per_block 1024 -max_shared_memory_per_block 49152"
     device_type: cuda
     num_threads: 16
-    work_dir: artifacts/tuning/cuda_sm80
+    work_dir: artifacts/tuning/cuda_sm75
 
 workloads:
   # # Elementwise

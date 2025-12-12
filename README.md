@@ -20,7 +20,7 @@ Transferable, invariant, and explainable GPU kernel cost model research scaffold
 - `Project Proposal.md`, `plan.md`: research plan and rolling status tracker.
 
 ## Setup
-1. **Prereqs:** Python 3.10+, PyTorch 2.3+, PyArrow 20.0. Install a TVM Python wheel separately (e.g., `pip install --pre -f https://mlc.ai/wheels mlc-ai-nightly-cpu`) or build TVM from source with TIR/MetaSchedule enabled.
+1. **Prereqs:** Python 3.11+, PyTorch 2.3+, PyArrow 20.0. Install a TVM Python wheel separately (e.g., `pip install --pre -f https://mlc.ai/wheels mlc-ai-nightly-cpu`) or build TVM from source with TIR/MetaSchedule enabled.
 2. **Create env & install:**
    ```bash
    python -m venv .venv
