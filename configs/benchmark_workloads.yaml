@@ -1,0 +1,182 @@
+# Canonical workload / target matrix for benchmark scripts.
+
+targets:
+  cpu:
+    target: "llvm -num-cores=8"
+    device_type: cpu
+    num_threads: 8
+    work_dir: artifacts/tuning/cpu
+  cuda_sm80:
+    target: "cuda -arch=sm_80"
+    device_type: cuda
+    num_threads: 16
+    work_dir: artifacts/tuning/cuda_sm80
+
+workloads:
+  # # Elementwise
+  # - name: vecadd_a
+  #   operator: vecadd
+  #   shape: {n: 262144}
+  #   tier: A
+  #   split: train
+  # - name: vecadd_b
+  #   operator: vecadd
+  #   shape: {n: 1048576}
+  #   tier: B
+  #   split: id_test
+  # - name: vecadd_c
+  #   operator: vecadd
+  #   shape: {n: 16777216}
+  #   tier: C
+  #   split: ood_test
+
+  # GEMM
+  - name: gemm_a
+    operator: gemm
+    shape: {m: 256, n: 256, k: 256}
+    tier: A
+    split: train
+  - name: gemm_b
+    operator: gemm
+    shape: {m: 1024, n: 1024, k: 1024}
+    tier: B
+    split: train
+  # - name: gemm_b_id
+  #   operator: gemm
+  #   shape: {m: 768, n: 1024, k: 512}
+  #   tier: B
+  #   split: id_test
+  # - name: gemm_c
+  #   operator: gemm
+  #   shape: {m: 4096, n: 4096, k: 4096}
+  #   tier: C
+  #   split: ood_test
+
+  # # Batched GEMM
+  # - name: bmm_a
+  #   operator: bmm
+  #   shape: {batch: 4, m: 64, n: 64, k: 64}
+  #   tier: A
+  #   split: train
+  # - name: bmm_b
+  #   operator: bmm
+  #   shape: {batch: 16, m: 128, n: 128, k: 128}
+  #   tier: B
+  #   split: train
+  # - name: bmm_b_id
+  #   operator: bmm
+  #   shape: {batch: 8, m: 96, n: 96, k: 96}
+  #   tier: B
+  #   split: id_test
+  # - name: bmm_c
+  #   operator: bmm
+  #   shape: {batch: 32, m: 256, n: 256, k: 256}
+  #   tier: C
+  #   split: ood_test
+
+  # Conv2D (NCHW)
+  - name: conv2d_a
+    operator: conv2d_nchw
+    shape: {n: 1, ci: 32, co: 32, h: 56, w: 56, kh: 3, kw: 3}
+    tier: A
+    split: train
+  - name: conv2d_b
+    operator: conv2d_nchw
+    shape: {n: 1, ci: 64, co: 128, h: 28, w: 28, kh: 3, kw: 3}
+    tier: B
+    split: train
+  - name: conv2d_b_id
+    operator: conv2d_nchw
+    shape: {n: 1, ci: 96, co: 128, h: 28, w: 28, kh: 1, kw: 1}
+    tier: B
+    split: id_test
+  - name: conv2d_c
+    operator: conv2d_nchw
+    shape: {n: 1, ci: 128, co: 256, h: 14, w: 14, kh: 3, kw: 3}
+    tier: C
+    split: ood_test
+
+  # Depthwise Conv2D
+  - name: depthwise_a
+    operator: depthwise_conv2d
+    shape: {n: 1, ci: 32, h: 112, w: 112, kh: 3, kw: 3}
+    tier: A
+    split: train
+  - name: depthwise_b
+    operator: depthwise_conv2d
+    shape: {n: 1, ci: 64, h: 56, w: 56, kh: 3, kw: 3}
+    tier: B
+    split: train
+  - name: depthwise_b_id
+    operator: depthwise_conv2d
+    shape: {n: 1, ci: 96, h: 28, w: 28, kh: 3, kw: 3}
+    tier: B
+    split: id_test
+  - name: depthwise_c
+    operator: depthwise_conv2d
+    shape: {n: 1, ci: 160, h: 14, w: 14, kh: 3, kw: 3}
+    tier: C
+    split: ood_test
+
+  # LayerNorm
+  - name: layernorm_a
+    operator: layernorm
+    shape: {n: 64, hidden: 256}
+    tier: A
+    split: train
+  - name: layernorm_b
+    operator: layernorm
+    shape: {n: 256, hidden: 1024}
+    tier: B
+    split: train
+  - name: layernorm_b_id
+    operator: layernorm
+    shape: {n: 192, hidden: 768}
+    tier: B
+    split: id_test
+  - name: layernorm_c
+    operator: layernorm
+    shape: {n: 512, hidden: 4096}
+    tier: C
+    split: ood_test
+
+  # Softmax
+  - name: softmax_a
+    operator: softmax
+    shape: {n: 256, k: 512}
+    tier: A
+    split: train
+  - name: softmax_b
+    operator: softmax
+    shape: {n: 512, k: 1024}
+    tier: B
+    split: train
+  - name: softmax_b_id
+    operator: softmax
+    shape: {n: 384, k: 896}
+    tier: B
+    split: id_test
+  - name: softmax_c
+    operator: softmax
+    shape: {n: 1024, k: 2048}
+    tier: C
+    split: ood_test
+
+offline:
+  dataset_root: artifacts/benchmarks/offline
+  feature_cache: artifacts/benchmarks/features
+  train_frac: 0.7
+  val_frac: 0.15
+  test_frac: 0.15
+  shuffle_seed: 0
+
+online:
+  seeds: [0, 1, 2]
+  max_trials: 256
+  trials_per_iter: 64
+  number: 3
+  repeat: 1
+  build_timeout: 30.0
+  runner_timeout: 10.0
+  log_dir: artifacts/benchmarks/online
+  cost_models: ["xgb", "graph"]

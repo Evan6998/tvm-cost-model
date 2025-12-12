@@ -17,6 +17,8 @@ dependencies = [
     "numpy>=1.26",
     "pydantic>=2.12.5",
     "tqdm>=4.67",
+    "xgboost>=2.0",
+    "scikit-learn>=1.8",
 ]
 
 [project.optional-dependencies]
