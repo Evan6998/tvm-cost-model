@@ -10,13 +10,18 @@ default, but you can swap in the GraphPyCostModel adapter (and load a saved mode
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import random
+import time
 from pathlib import Path
 from typing import List, Sequence, Tuple
 import typing
 import uuid
 
 import tvm  # type: ignore[import]
+import tvm.tir as tvm_tir  # type: ignore[import]
 from tvm import meta_schedule as ms  # type: ignore[import]
 from tvm.meta_schedule import cost_model as ms_cost_model  # type: ignore[import]
 from tvm.meta_schedule.builder import BuilderInput, BuilderResult  # type: ignore[import]
@@ -25,6 +30,77 @@ from tvm.script import from_source  # type: ignore[import]
 
 from tvm_cost_model.integration.metaschedule_adapter import GraphPyCostModel
 from tvm_cost_model.integration.utils import runner_result_to_latency_ms
+
+
+def _seed_everything(seed: int) -> None:
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    try:
+        import numpy as np  # type: ignore
+
+        np.random.seed(seed)
+    except Exception:
+        ...
+    try:
+        import torch  # type: ignore
+
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():  # type: ignore[attr-defined]
+            torch.cuda.manual_seed_all(seed)  # type: ignore[attr-defined]
+    except Exception:
+        ...
+
+
+def _shape_to_suffix(shape: dict[str, int]) -> str:
+    parts = []
+    for key in sorted(shape):
+        value = shape[key]
+        if isinstance(value, (tuple, list)):
+            value_str = "x".join(str(v) for v in value)
+        else:
+            value_str = str(value)
+        parts.append(f"{key}{value_str}")
+    return "_".join(parts) if parts else "nospec"
+
+
+def _workload_id(operator: str, shape: dict[str, int], target: str) -> str:
+    suffix = _shape_to_suffix(shape)
+    target_slug = str(target).replace(" ", "").replace(":", "_")
+    return f"{operator}_{suffix}_{target_slug}"
+
+
+def _candidate_id(trace_json: str, scheduled_tir: str) -> str:
+    hasher = hashlib.sha1()
+    hasher.update(trace_json.encode("utf-8"))
+    hasher.update(scheduled_tir.encode("utf-8"))
+    return hasher.hexdigest()
+
+
+def _shape_for_json(shape: dict[str, tuple[int, ...]] | dict[str, int]) -> dict[str, typing.Any]:
+    normalized: dict[str, typing.Any] = {}
+    for key, value in shape.items():
+        if isinstance(value, tuple):
+            normalized[key] = [int(v) for v in value]
+        else:
+            try:
+                normalized[key] = int(value)
+            except Exception:
+                normalized[key] = value
+    return normalized
+
+
+def _json_friendly(obj: typing.Any) -> typing.Any:
+    """Recursively convert TVM objects (e.g., IntImm) into JSON-safe primitives."""
+
+    if isinstance(obj, dict):
+        return {k: _json_friendly(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_friendly(v) for v in obj]
+    if isinstance(obj, tvm_tir.IntImm):
+        return int(obj.value)
+    if isinstance(obj, tvm_tir.FloatImm):
+        return float(obj.value)
+    return obj
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,6 +151,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Cost model to plug into pre_tuning.",
     )
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Random seed for reproducible tuning and logging.",
+    )
+    parser.add_argument(
         "--graph-model-path",
         default="./model.pth",
         help="Path to a saved GraphCostModel to load when --cost-model graph is set.",
@@ -114,6 +196,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--cpu-cache-flush",
         action="store_true",
         help="Enable CPU cache flush in EvaluatorConfig.",
+    )
+    parser.add_argument(
+        "--log-json-path",
+        type=str,
+        default="",
+        help="Optional JSONL path to append per-candidate measurements and schedule traces.",
     )
     return parser
 
@@ -214,9 +302,27 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
+    _seed_everything(args.seed)
     mod, workload_shape = load_module_and_shape(args)
     target = tvm.target.Target(args.target)
     device_type = _infer_device_type(target, args.device_type)
+    shape_for_id: dict[str, typing.Any] = {}
+    if not args.tir:
+        try:
+            shape_for_id = parse_shape_arg(args.shape)
+        except Exception:
+            shape_for_id = {}
+    if not shape_for_id:
+        shape_for_id = workload_shape
+    workload_id = _workload_id(args.task_name or args.operator, shape_for_id, args.target)
+    original_tir = str(mod.script())
+
+    log_fh: typing.TextIO | None = None
+    if args.log_json_path:
+        log_path = Path(args.log_json_path)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_fh = log_path.open("a", encoding="utf-8")
+        print(f"Logging measurements to {log_path.resolve()}")
 
     cost_model = make_cost_model(args)
     database = ms.database.MemoryDatabase()  # defaults to memory DB to keep API happy
@@ -233,6 +339,8 @@ def main() -> None:
         task_name=args.task_name or args.operator,
         num_threads=args.num_threads,
     )
+    ctx.workload_shape = workload_shape  # type: ignore[attr-defined]
+    ctx.workload_name = args.operator  # type: ignore[attr-defined]
 
     design_spaces = ctx.generate_design_space()
     print(f"Generated {len(design_spaces)} design spaces.")
@@ -258,37 +366,84 @@ def main() -> None:
     measured = 0
     remaining = args.max_trials
     iteration = 0
+    best_latency = float("inf")
+    start_time = time.time()
 
-    while remaining > 0:
-        iteration += 1
-        measure_candidates = ctx.generate_measure_candidates()
-        if not measure_candidates:
-            print("Search strategy returned no more candidates.")
-            break
-        measure_candidates = measure_candidates[:remaining]
-        print(f"[iter {iteration}] Measuring {len(measure_candidates)} candidates (remaining={remaining})...")
+    try:
+        while remaining > 0:
+            iteration += 1
+            measure_candidates = ctx.generate_measure_candidates()
+            if not measure_candidates:
+                print("Search strategy returned no more candidates.")
+                break
+            measure_candidates = measure_candidates[:remaining]
+            print(f"[iter {iteration}] Measuring {len(measure_candidates)} candidates (remaining={remaining})...")
 
-        runnable_candidates, runner_results = _build_and_run(
-            measure_candidates, builder, runner, target, device_type
-        )
-        if not runnable_candidates:
-            print("No runnable candidates in this batch; stopping early.")
-            break
+            runnable_candidates, runner_results = _build_and_run(
+                measure_candidates, builder, runner, target, device_type
+            )
+            if not runnable_candidates:
+                print("No runnable candidates in this batch; stopping early.")
+                break
 
-        ctx.notify_runner_results(runnable_candidates, runner_results)
+            ctx.notify_runner_results(runnable_candidates, runner_results)
 
-        for _, result in zip(runnable_candidates, runner_results):
-            latency = runner_result_to_latency_ms(result)
-            if latency is None:
-                print("  - candidate had invalid runner result, skipping log")
-                continue
-            print(f"  - candidate runtime: {latency:.3f} ms")
+            for idx, (candidate, result) in enumerate(zip(runnable_candidates, runner_results)):
+                latency = runner_result_to_latency_ms(result)
+                measure_idx = measured + idx
+                trace_json_obj = candidate.sch.trace.as_json() if getattr(candidate, "sch", None) else {}
+                trace_json_obj = _json_friendly(trace_json_obj)
+                trace_json = json.dumps(trace_json_obj, sort_keys=True)
+                scheduled_tir = str(candidate.sch.mod.script()) if getattr(candidate, "sch", None) else ""
+                cand_id = _candidate_id(trace_json, scheduled_tir)
+                log_record: dict[str, typing.Any] = {
+                    "workload_id": workload_id,
+                    "operator": args.operator,
+                    "task_name": args.task_name or args.operator,
+                    "shape": _shape_for_json(workload_shape),
+                    "target": args.target,
+                    "device_type": device_type,
+                    "cost_model": args.cost_model,
+                    "seed": args.seed,
+                    "dtype": args.dtype,
+                    "candidate_id": cand_id,
+                    "measure_idx": measure_idx,
+                    "elapsed_sec": time.time() - start_time,
+                    "schedule_trace": trace_json_obj,
+                    "scheduled_tir": scheduled_tir,
+                    "original_tir": original_tir,
+                    "max_trials": args.max_trials,
+                    "trials_per_iter": args.trials_per_iter,
+                    "number": args.number,
+                    "repeat": args.repeat,
+                }
+                if latency is None:
+                    log_record["error"] = getattr(result, "error_msg", "invalid runner result")
+                    print("  - candidate had invalid runner result, skipping log")
+                else:
+                    best_latency = min(best_latency, latency)
+                    log_record["latency_ms"] = latency
+                    log_record["best_latency_ms"] = best_latency
+                    print(f"  - candidate runtime: {latency:.3f} ms (best={best_latency:.3f} ms)")
+                if log_fh:
+                    log_fh.write(json.dumps(log_record) + "\n")
 
-        measured += len(runnable_candidates)
-        remaining = max(args.max_trials - measured, 0)
+            measured += len(runnable_candidates)
+            remaining = max(args.max_trials - measured, 0)
 
-    ctx.post_tuning()
-    print(f"Finished tuning. Measured {measured} candidates. Workload shape: {workload_shape}")
+        ctx.post_tuning()
+    finally:
+        if hasattr(cost_model, "flush_pending"):
+            try:
+                cost_model.flush_pending()  # type: ignore[attr-defined]
+            except Exception:
+                ...
+        if log_fh:
+            log_fh.close()
+    print(
+        f"Finished tuning. Measured {measured} candidates. "
+        f"Workload shape: {_shape_for_json(workload_shape)} | best latency: {best_latency:.3f} ms"
+    )
 
 
 

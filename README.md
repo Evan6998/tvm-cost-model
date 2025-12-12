@@ -43,6 +43,14 @@ Transferable, invariant, and explainable GPU kernel cost model research scaffold
   ```bash
   python scripts/train_cost_model.py --config configs/sample_ranker.yaml
   ```
+- End-to-end benchmark flow (configurable via `configs/benchmark_workloads.yaml`):
+  ```bash
+  python scripts/run_online_benchmark.py --config configs/benchmark_workloads.yaml --dry-run  # inspect commands
+  python scripts/run_online_benchmark.py --config configs/benchmark_workloads.yaml
+  python scripts/collect_dataset.py --logs "artifacts/benchmarks/online/**/*.jsonl" --config configs/benchmark_workloads.yaml
+  python scripts/run_offline_benchmark.py --dataset-root artifacts/benchmarks/offline
+  python scripts/summarize_offline_metrics.py
+  ```
 
 ## Testing
 - Run the focused feature tests (requires TVM available in the environment):
