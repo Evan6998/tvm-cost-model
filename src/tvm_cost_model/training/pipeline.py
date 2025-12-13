@@ -68,8 +68,13 @@ class TrainingPipeline:
 
         self.model.save(path)
 
-    def fit_measurements(self, measurements: list[MeasurementRecord]) -> int:
-        """Train on MeasurementRecords using pairwise ranking."""
+    def fit_measurements(self, measurements: list[MeasurementRecord], cached_graphs: list[ProgramGraph] | None = None) -> int:
+        """Train on MeasurementRecords using pairwise ranking.
+        
+        Args:
+            measurements: List of measurement records
+            cached_graphs: Optional pre-built graphs (must align with measurements)
+        """
 
         if not measurements:
             return 0
@@ -77,14 +82,18 @@ class TrainingPipeline:
         import random
         random.shuffle(measurements)
         # measurements = measurements[:1000]
-        print(f"Building graphs for {len(measurements)=} scheduled TIR modules...")
-        graphs: list[ProgramGraph] = []
-        # graphs = [self._build_graph(m.scheduled_tir or m.original_tir) for m in measurements]
-        with tqdm(total=len(measurements), desc="Building graphs", unit="graph") as pbar:
-            for m in measurements:
-                graph = self._build_graph(m.scheduled_tir or m.original_tir)
-                graphs.append(graph)
-                pbar.update(1)
+        
+        if cached_graphs is not None:
+            print(f"Using {len(cached_graphs)} pre-computed graphs (skipping build phase)")
+            graphs = cached_graphs
+        else:
+            print(f"Building graphs for {len(measurements)=} scheduled TIR modules...")
+            graphs: list[ProgramGraph] = []
+            with tqdm(total=len(measurements), desc="Building graphs", unit="graph") as pbar:
+                for m in measurements:
+                    graph = self._build_graph(m.scheduled_tir or m.original_tir)
+                    graphs.append(graph)
+                    pbar.update(1)
         self.model.encoder.prime_feature_names(graphs)
         print("Encoding graphs...")
         encodings = {id(m): self.model.encoder.encode(g) for m, g in zip(measurements, graphs)}

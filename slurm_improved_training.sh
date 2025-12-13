@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=06:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=logs/improved_train_%j.out
 #SBATCH --error=logs/improved_train_%j.err
 #SBATCH --mail-type=END,FAIL
@@ -69,6 +69,30 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 echo ""
 
 # ============================================================================
+# GRAPH PRE-COMPUTATION (One-time cost, ~30-60 min)
+# ============================================================================
+GRAPH_CACHE="artifacts/sweeps/sweep_merged_graphs.pkl"
+
+echo "========================================================================"
+echo "Checking for pre-computed graphs..."
+echo "========================================================================"
+
+if [ ! -f "$GRAPH_CACHE" ]; then
+    echo "❌ Graph cache not found. Building graphs from scratch..."
+    echo "   This will take ~30-60 minutes but only needs to be done once."
+    echo ""
+    python scripts/precompute_graphs.py \
+        --dataset artifacts/sweeps/sweep_merged.parquet \
+        --output "$GRAPH_CACHE"
+    echo ""
+    echo "✓ Graph cache created: $GRAPH_CACHE"
+else
+    echo "✓ Using existing graph cache: $GRAPH_CACHE"
+    ls -lh "$GRAPH_CACHE"
+fi
+echo ""
+
+# ============================================================================
 # MAIN TRAINING - Improved Configuration
 # ============================================================================
 echo "========================================================================"
@@ -76,6 +100,7 @@ echo "Starting IMPROVED training with:"
 echo "  ✓ ListNet loss (listwise ranking)"
 echo "  ✓ Adaptive margins (performance-gap aware)"
 echo "  ✓ Hard pair reweighting (3x weight for similar schedules)"
+echo "  ✓ Pre-computed graphs (FAST!)"
 echo ""
 echo "Expected improvements on HARD pairs:"
 echo "  - Baseline: ~56% accuracy"
@@ -90,7 +115,8 @@ python scripts/train_cost_model.py \
     --batch-size 256 \
     --learning-rate 5e-4 \
     --margin 0.05 \
-    --output model_improved.pth
+    --output model_improved.pth \
+    --graph-cache "$GRAPH_CACHE"
 
 # ============================================================================
 # Job completion
@@ -125,4 +151,5 @@ else
 fi
 
 exit $EXIT_CODE
+
 

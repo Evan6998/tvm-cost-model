@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import pickle
 from pathlib import Path
 
 from tvm_cost_model.data.dataset_builder import load_measurement_records
@@ -22,6 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weight-decay", type=float, default=0.0, help="Weight decay for optimizer")
     parser.add_argument("--pair-seed", type=int, default=0, help="Seed for pair sampling")
     parser.add_argument("--output", type=str, default="", help="Path to save the trained model (torch format)")
+    parser.add_argument("--graph-cache", type=str, default=None, help="Path to pre-computed graph cache (speeds up training)")
     return parser
 
 
@@ -47,9 +49,22 @@ def main() -> None:
         print(f"Loading measurements from {dataset_path}...")
         measurements = load_measurement_records(dataset_path)
         print(f"Loaded {len(measurements)} measurement records.")
+        
+        # Load cached graphs if available
+        cached_graphs = None
+        if args.graph_cache:
+            cache_path = Path(args.graph_cache)
+            if cache_path.exists():
+                print(f"Loading pre-computed graphs from {cache_path}...")
+                with open(cache_path, 'rb') as f:
+                    cache_data = pickle.load(f)
+                    cached_graphs = cache_data['graphs']
+                print(f"✓ Loaded {len(cached_graphs)} cached graphs")
+            else:
+                print(f"Warning: Graph cache {cache_path} not found, will build graphs from scratch")
 
         print("Training cost model...")
-        pair_count = pipeline.fit_measurements(measurements)
+        pair_count = pipeline.fit_measurements(measurements, cached_graphs=cached_graphs)
         print(
             f"Trained on {len(measurements)} measurements "
             f"using {pair_count} ranking pairs."
