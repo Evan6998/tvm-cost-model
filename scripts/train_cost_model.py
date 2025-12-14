@@ -29,7 +29,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    import sys
+    print("DEBUG: Script started", flush=True)
+    sys.stdout.flush()
+    
     args = build_parser().parse_args()
+    print("DEBUG: Args parsed", flush=True)
+    sys.stdout.flush()
+    
     config = TrainingConfig(
         epochs=args.epochs,
         learning_rate=args.learning_rate,
@@ -43,7 +50,11 @@ def main() -> None:
         curriculum=not args.no_curriculum,  # Disable curriculum if flag set
         show_progress=True,
     )
+    print("DEBUG: Creating pipeline", flush=True)
+    sys.stdout.flush()
     pipeline = TrainingPipeline(config=config)
+    print("DEBUG: Pipeline created", flush=True)
+    sys.stdout.flush()
 
     if args.dataset:
         dataset_path = Path(args.dataset)

@@ -68,8 +68,11 @@ echo "  - ListNet loss (listwise ranking)"
 echo "  - Adaptive margins (performance-gap aware)"
 echo "  - Hard pair reweighting (3x)"
 echo ""
+echo "DEBUG: About to start Python script at $(date)"
+echo "DEBUG: Python: $(which python)"
+echo ""
 
-python scripts/train_cost_model.py \
+python -u scripts/train_cost_model.py \
     --dataset artifacts/sweeps/sweep_merged.parquet \
     --epochs 30 \
     --max-pairs 5000 \
