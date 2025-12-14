@@ -25,15 +25,18 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_logs(patterns: Iterable[str]) -> list[dict[str, Any]]:
+    print(f"Loading logs from patterns: {patterns}")
     records: list[dict[str, Any]] = []
     for pattern in patterns:
-        matched = glob.glob(pattern)
+        matched = glob.glob(pattern, recursive=True)
+        print(f"Pattern '{pattern}' matched files: {matched}")
         if not matched and Path(pattern).exists():
             matched = [pattern]
         for path_str in matched:
             path = Path(path_str)
             if not path.exists():
                 continue
+            print(f"Loading log: {path}")
             with path.open() as f:
                 for line in f:
                     if not line.strip():
@@ -49,7 +52,7 @@ def summarize_group(rows: list[dict[str, Any]], milestones: list[int]) -> dict[s
     rows = [r for r in rows if r.get("latency_ms") is not None]
     rows.sort(key=lambda r: r.get("measure_idx", 0))
     best = float("inf")
-    curve = []
+    curve: list[dict[str, Any]] = []
     latency_at_n: dict[int, float] = {}
     for r in rows:
         latency = float(r["latency_ms"])
@@ -68,7 +71,7 @@ def main() -> None:
 
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for rec in logs:
-        workload = rec.get("workload_id") or rec.get("task_name") or rec.get("operator")
+        workload = rec["workload_id"]
         cost_model = rec.get("cost_model", "unknown")
         grouped[(workload, cost_model)].append(rec)
 
