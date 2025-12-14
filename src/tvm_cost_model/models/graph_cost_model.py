@@ -194,8 +194,9 @@ class GraphCostModel:
                         train_correct += int((better_score > worse_score).item())
                         train_count += 1
                     
-                loss = torch.stack(batch_losses).mean()
+                    loss = torch.stack(batch_losses).mean()
                 
+                # Optimizer step (outside if/else)
                 self._optimizer.zero_grad()
                 loss.backward()  # type: ignore
                 self._optimizer.step()
