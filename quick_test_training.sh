@@ -63,6 +63,8 @@ fi
 
 echo ""
 echo "Step 3: Running 30-epoch training with improvements..."
+echo "  - 30,000 ranking pairs (full dataset)"
+echo "  - 30 epochs (quick test)"
 echo "  - Shuffled training (no curriculum)"
 echo "  - ListNet loss (listwise ranking)"
 echo "  - Adaptive margins (performance-gap aware)"
@@ -75,8 +77,8 @@ echo ""
 python -u scripts/train_cost_model.py \
     --dataset artifacts/sweeps/sweep_merged.parquet \
     --epochs 30 \
-    --max-pairs 5000 \
-    --batch-size 128 \
+    --max-pairs 30000 \
+    --batch-size 256 \
     --learning-rate 5e-4 \
     --margin 0.05 \
     --output model_test_30epochs.pth \
