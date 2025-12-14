@@ -85,8 +85,8 @@ echo ""
 # ============================================================================
 echo "========================================================================"
 echo "Starting Bayesian Optimization..."
-echo "  - Subset size: 5000 measurements"
-echo "  - Max pairs per trial: 5000"
+echo "  - Subset size: 10,000 measurements"
+echo "  - Max pairs per trial: 10,000"
 echo "  - Epochs per trial: 20"
 echo "  - Number of trials: 25"
 echo "  - Shuffled learning (no curriculum)"
@@ -103,8 +103,8 @@ echo ""
 python -u scripts/bayesopt_hyperparameters.py \
     --dataset artifacts/sweeps/sweep_merged.parquet \
     --graph-cache "$GRAPH_CACHE" \
-    --subset-size 5000 \
-    --max-pairs 5000 \
+    --subset-size 10000 \
+    --max-pairs 10000 \
     --epochs 20 \
     --n-iter 25 \
     --output artifacts/bayesopt/bayesopt_results.json \
