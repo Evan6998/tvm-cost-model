@@ -107,7 +107,7 @@ python -u scripts/bayesopt_hyperparameters.py \
     --max-pairs 10000 \
     --epochs 20 \
     --n-iter 25 \
-    --output artifacts/bayesopt/bayesopt_results.json \
+    --output artifacts/bayesopt/bayesopt_results_${SLURM_JOB_ID}.json \
     --seed 42
 
 EXIT_CODE=$?
@@ -124,16 +124,24 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo "✓ Optimization completed successfully!"
     echo ""
     echo "Results saved to:"
-    echo "  - artifacts/bayesopt/bayesopt_results.json"
-    echo "  - artifacts/bayesopt/bayesopt_results_best.txt"
+    echo "  - artifacts/bayesopt/bayesopt_results_${SLURM_JOB_ID}.json"
+    echo "  - artifacts/bayesopt/bayesopt_results_${SLURM_JOB_ID}_best.txt"
     echo ""
     echo "Best parameters:"
-    cat artifacts/bayesopt/bayesopt_results_best.txt
+    cat artifacts/bayesopt/bayesopt_results_${SLURM_JOB_ID}_best.txt
+    echo ""
+    
+    # Also create a symlink to latest for easy access
+    ln -sf bayesopt_results_${SLURM_JOB_ID}.json artifacts/bayesopt/bayesopt_results_latest.json
+    ln -sf bayesopt_results_${SLURM_JOB_ID}_best.txt artifacts/bayesopt/bayesopt_results_latest_best.txt
+    echo "Symlinks created:"
+    echo "  - artifacts/bayesopt/bayesopt_results_latest.json -> results_${SLURM_JOB_ID}.json"
+    echo "  - artifacts/bayesopt/bayesopt_results_latest_best.txt -> results_${SLURM_JOB_ID}_best.txt"
     echo ""
     echo "Next steps:"
     echo "  1. Review best parameters above"
-    echo "  2. Update slurm_final_training.sh with best params"
-    echo "  3. Run: sbatch slurm_final_training.sh"
+    echo "  2. Validate top configs on full dataset:"
+    echo "     python scripts/validate_top_configs.py --top-n 5 --bayesopt-results artifacts/bayesopt/bayesopt_results_${SLURM_JOB_ID}.json"
 else
     echo ""
     echo "✗ Optimization failed with exit code: $EXIT_CODE"
