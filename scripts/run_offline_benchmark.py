@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
+from tqdm import tqdm
 import xgboost  # type: ignore
 import torch
 from tvm.script import from_source  # type: ignore[import]
@@ -52,6 +53,7 @@ def load_split(path: Path, limit: int | None = None) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     rows: list[dict[str, Any]] = []
+    print(f"Loading split from {path} (limit={limit or 'all'})")
     with path.open() as f:
         for line in f:
             if not line.strip():
@@ -64,7 +66,7 @@ def load_split(path: Path, limit: int | None = None) -> list[dict[str, Any]]:
 
 def to_measurements(rows: Iterable[dict[str, Any]]) -> list[MeasurementRecord]:
     measurements: list[MeasurementRecord] = []
-    for rec in rows:
+    for rec in tqdm(rows, desc="Preparing GraphPy measurements", leave=False):
         latency = rec.get("latency_ms")
         if latency is None:
             continue
@@ -96,7 +98,7 @@ def to_measurements(rows: Iterable[dict[str, Any]]) -> list[MeasurementRecord]:
 
 def build_graphs(rows: Iterable[dict[str, Any]], builder: TVMGraphBuilder) -> dict[str, Any]:
     graphs: dict[str, Any] = {}
-    for rec in rows:
+    for rec in tqdm(rows, desc="Collecting graphs", leave=False):
         cid = str(rec.get("candidate_id") or rec.get("schedule_trace"))
         if cid in graphs:
             continue
@@ -114,7 +116,7 @@ def build_graphs(rows: Iterable[dict[str, Any]], builder: TVMGraphBuilder) -> di
 def aggregate_features(graphs: dict[str, Any], encoder: GraphEncoder) -> dict[str, list[float]]:
     encoder.prime_feature_names(graphs.values())
     features: dict[str, list[float]] = {}
-    for cid, graph in graphs.items():
+    for cid, graph in tqdm(graphs.items(), desc="Encoding graphs", leave=False):
         try:
             enc = encoder.encode(graph)
             tensor_enc = encoder.to_tensor_encoding(enc, device=torch.device("cpu"))
@@ -139,7 +141,7 @@ def _evaluate_splits_with_pipeline(
             continue
         latencies = []
         scores = []
-        for rec in rows:
+        for rec in tqdm(rows, desc=f"GraphPy eval {split_name}", leave=False):
             latency = rec.get("latency_ms")
             if latency is None:
                 continue
@@ -180,6 +182,7 @@ def evaluate_graphpy(
     metrics: dict[str, Any] = {}
 
     if skip_training:
+        print("GraphPy: loading pretrained model")
         if not model_path:
             raise ValueError("skip_training=True requires a model_path to load.")
         model_file = Path(model_path)
@@ -189,12 +192,15 @@ def evaluate_graphpy(
         metrics["loaded_model"] = str(model_file)
     else:
         train_rows = splits.get("train", [])
+        print(f"GraphPy: preparing measurements for {len(train_rows)} train rows")
         measurements = to_measurements(train_rows)
         if not measurements:
             return {}
+        print("GraphPy: training pipeline")
         pair_count = pipeline.fit_measurements(measurements)
         metrics["trained_pairs"] = pair_count
 
+    print("GraphPy: evaluating splits")
     metrics.update(_evaluate_splits_with_pipeline(pipeline, splits))
     return metrics
 
@@ -206,13 +212,16 @@ def evaluate_xgb(splits: dict[str, list[dict[str, Any]]], seed: int) -> dict[str
     all_rows: list[dict[str, Any]] = []
     for rows in splits.values():
         all_rows.extend(rows)
+    print(f"XGB: building graphs from {len(all_rows)} rows")
     graphs = build_graphs(all_rows, builder)
+    print(f"XGB: built {len(graphs)} unique graphs, encoding features")
     features = aggregate_features(graphs, encoder)
 
-    def rows_to_xy(rows: list[dict[str, Any]]):
+    def rows_to_xy(rows: list[dict[str, Any]], desc: str | None = None):
         X: list[list[float]] = []
         y: list[float] = []
-        for rec in rows:
+        iterator = tqdm(rows, desc=desc, leave=False) if desc else rows
+        for rec in iterator:
             cid = str(rec.get("candidate_id") or rec.get("schedule_trace"))
             feats = features.get(cid)
             if feats is None:
@@ -224,9 +233,10 @@ def evaluate_xgb(splits: dict[str, list[dict[str, Any]]], seed: int) -> dict[str
             y.append(float(latency))
         return X, y
 
-    train_X, train_y = rows_to_xy(splits.get("train", []))
+    train_X, train_y = rows_to_xy(splits.get("train", []), desc="XGB train prep")
     if not train_X:
         return {}
+    print(f"XGB: training on {len(train_X)} examples")
     model = xgboost.XGBRegressor(
         n_estimators=200,
         max_depth=6,
@@ -238,7 +248,7 @@ def evaluate_xgb(splits: dict[str, list[dict[str, Any]]], seed: int) -> dict[str
     model.fit(train_X, train_y)
     metrics: dict[str, Any] = {}
     for split_name, rows in splits.items():
-        X, y_true = rows_to_xy(rows)
+        X, y_true = rows_to_xy(rows, desc=f"XGB eval {split_name}")
         if not X or not y_true:
             continue
         preds = model.predict(X)
@@ -251,13 +261,17 @@ def evaluate_xgb(splits: dict[str, list[dict[str, Any]]], seed: int) -> dict[str
 def main() -> None:
     args = parse_args()
     root = Path(args.dataset_root)
+    print(f"Loading dataset splits from {root}")
     splits: dict[str, list[dict[str, Any]]] = {
         name: load_split(root / f"{name}.jsonl", args.max_train if name == "train" and args.max_train else None)
         for name in ["train", "val", "test", "id_test", "ood_test"]
     }
+    for name, rows in splits.items():
+        print(f"Loaded split '{name}': {len(rows)} rows")
 
     results: dict[str, Any] = {"config": vars(args)}
     if args.model in {"graph", "both"}:
+        print("=== Running GraphPy evaluation ===")
         results["graph"] = evaluate_graphpy(
             splits,
             max_pairs=args.max_pairs,
@@ -267,6 +281,7 @@ def main() -> None:
             skip_training=args.use_pretrained_graph,
         )
     if args.model in {"xgb", "both"}:
+        print("=== Running XGB evaluation ===")
         results["xgb"] = evaluate_xgb(splits, seed=args.seed)
 
     out_path = Path(args.output)
