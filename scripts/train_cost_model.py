@@ -20,8 +20,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hard-frac", type=float, default=0.1, help="Hard pair relative gap (fraction, e.g., 0.1 = 10%)")
     parser.add_argument("--margin", type=float, default=0.1, help="Margin for ranking loss")
     parser.add_argument("--weight-decay", type=float, default=0.0, help="Weight decay for optimizer")
+    parser.add_argument("--hidden-dim", type=int, default=64, help="Hidden dimension for GNN")
     parser.add_argument("--pair-seed", type=int, default=0, help="Seed for pair sampling")
-    parser.add_argument("--output", type=str, default="", help="Path to save the trained model (torch format)")
+    parser.add_argument("--output", type=str, default="", help="Path to save the trained model (torch format")
+    parser.add_argument("--graph-cache", type=str, default=None, help="Path to pre-computed graph cache")
+    parser.add_argument("--no-curriculum", action="store_true", help="Disable curriculum (shuffled training)")
     return parser
 
 
@@ -37,8 +40,14 @@ def main() -> None:
         margin=args.margin,
         weight_decay=args.weight_decay,
         pair_seed=args.pair_seed,
+        curriculum=not args.no_curriculum,
+        show_progress=True,
     )
     pipeline = TrainingPipeline(config=config)
+    
+    # Set hidden_dim if specified
+    if args.hidden_dim != 64:
+        pipeline.model.hidden_dim = args.hidden_dim
 
     if args.dataset:
         dataset_path = Path(args.dataset)
