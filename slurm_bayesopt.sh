@@ -87,8 +87,8 @@ echo "========================================================================"
 echo "Starting Bayesian Optimization..."
 echo "  - Subset size: 10,000 measurements"
 echo "  - Max pairs per trial: 10,000"
-echo "  - Epochs per trial: 20"
-echo "  - Number of trials: 25"
+echo "  - Epochs per trial: 25"
+echo "  - Number of trials: 15"
 echo "  - Shuffled learning (no curriculum)"
 echo ""
 echo "Optimizing hyperparameters:"
@@ -105,8 +105,8 @@ python -u scripts/bayesopt_hyperparameters.py \
     --graph-cache "$GRAPH_CACHE" \
     --subset-size 10000 \
     --max-pairs 10000 \
-    --epochs 20 \
-    --n-iter 25 \
+    --epochs 25 \
+    --n-iter 15 \
     --output artifacts/bayesopt/bayesopt_results_${SLURM_JOB_ID}.json \
     --seed 42
 

@@ -54,7 +54,7 @@ def train_and_evaluate(
         margin=margin,
         weight_decay=weight_decay,
         pair_seed=seed,
-        curriculum=False,  # Shuffled learning works better
+        curriculum=False,  # Shuffled learning (user preference)
         show_progress=True,  # Show epoch progress for debugging
     )
     
@@ -136,8 +136,8 @@ def main():
     parser.add_argument("--graph-cache", type=str, required=True, help="Path to pre-computed graph cache")
     parser.add_argument("--subset-size", type=int, default=10000, help="Number of measurements to use")
     parser.add_argument("--max-pairs", type=int, default=10000, help="Max pairs per trial")
-    parser.add_argument("--epochs", type=int, default=20, help="Epochs per trial")
-    parser.add_argument("--n-iter", type=int, default=25, help="Number of BayesOpt iterations")
+    parser.add_argument("--epochs", type=int, default=25, help="Epochs per trial")
+    parser.add_argument("--n-iter", type=int, default=15, help="Number of BayesOpt iterations")
     parser.add_argument("--output", type=str, default="bayesopt_results.json", help="Output file for results")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
@@ -219,15 +219,38 @@ def main():
         allow_duplicate_points=True,  # Allow retries on same params
     )
     
+    # Seed with known-good hyperparameters from baseline (achieved 86% accuracy)
+    print("Seeding BayesOpt with known-good baseline configuration...")
+    print("  (from previous run: 86% validation accuracy)")
+    baseline_params = {
+        'learning_rate': 1e-3,
+        'margin': 1.0,
+        'batch_size': 256,
+        'hidden_dim': 64,
+        'weight_decay': 1e-4,
+    }
+    print(f"  Baseline: {baseline_params}")
+    
+    # Register baseline as first trial
+    try:
+        optimizer.probe(
+            params=baseline_params,
+            lazy=False,  # Evaluate immediately
+        )
+        print("  ✓ Baseline evaluated")
+    except Exception as e:
+        print(f"  Warning: Could not probe baseline: {e}")
+    
+    print()
     print("="*80)
     print("Starting Bayesian Optimization...")
     print("="*80)
     print()
     
-    # Run optimization
+    # Run optimization (fewer random points since we seeded with good config)
     optimizer.maximize(
-        init_points=5,  # Random exploration first
-        n_iter=args.n_iter,  # Then guided optimization
+        init_points=3,  # Reduced from 5 (we already have baseline)
+        n_iter=args.n_iter,  # Then guided optimization around baseline
     )
     
     print()
