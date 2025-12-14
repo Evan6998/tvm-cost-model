@@ -23,6 +23,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset-root", type=str, default="artifacts/benchmarks/offline", help="Directory from collect_dataset.py")
     parser.add_argument("--output", type=str, default="artifacts/benchmarks/offline/metrics.json", help="Path to write metrics JSON.")
     parser.add_argument("--model", type=str, default="both", choices=["graph", "xgb", "both"], help="Which model(s) to evaluate.")
+    parser.add_argument("--graph-model-path", type=str, default="./model.pth", help="Path to a saved GraphPy model to load.")
+    parser.add_argument(
+        "--use-pretrained-graph",
+        action="store_true",
+        help="Load GraphPy weights from --graph-model-path and skip offline training.",
+    )
     parser.add_argument("--max-pairs", type=int, default=2048, help="Ranking pairs for GraphPy training.")
     parser.add_argument("--epochs", type=int, default=10, help="GraphPy training epochs.")
     parser.add_argument("--seed", type=int, default=0, help="Random seed.")
@@ -124,27 +130,10 @@ def aggregate_features(graphs: dict[str, Any], encoder: GraphEncoder) -> dict[st
     return features
 
 
-def evaluate_graphpy(
-    splits: dict[str, list[dict[str, Any]]],
-    max_pairs: int,
-    epochs: int,
-    seed: int,
+def _evaluate_splits_with_pipeline(
+    pipeline: TrainingPipeline, splits: dict[str, list[dict[str, Any]]]
 ) -> dict[str, Any]:
-    train_rows = splits.get("train", [])
-    measurements = to_measurements(train_rows)
-    if not measurements:
-        return {}
-
-    cfg = TrainingConfig(
-        max_pairs=max_pairs,
-        epochs=epochs,
-        pair_seed=seed,
-        show_progress=False,
-    )
-    pipeline = TrainingPipeline(config=cfg)
-    pair_count = pipeline.fit_measurements(measurements)
-    metrics: dict[str, Any] = {"trained_pairs": pair_count}
-
+    split_metrics: dict[str, Any] = {}
     for split_name, rows in splits.items():
         if not rows:
             continue
@@ -157,16 +146,56 @@ def evaluate_graphpy(
             latencies.append(float(latency))
             tir_src = rec.get("scheduled_tir") or rec.get("original_tir")
             if not tir_src:
+                latencies.pop()
                 continue
             try:
-                graph = pipeline._build_graph(from_source(tir_src))
-                scores.append(pipeline.model.predict(graph).score)
+                prediction = pipeline.predict(from_source(tir_src))
+                scores.append(prediction.score)
             except Exception:
                 latencies.pop()
                 continue
         if not latencies or not scores or len(latencies) != len(scores):
             continue
-        metrics[split_name] = compute_ranking_metrics(latencies, scores, pred_higher_is_better=True).__dict__
+        split_metrics[split_name] = compute_ranking_metrics(
+            latencies, scores, pred_higher_is_better=True
+        ).__dict__
+    return split_metrics
+
+
+def evaluate_graphpy(
+    splits: dict[str, list[dict[str, Any]]],
+    max_pairs: int,
+    epochs: int,
+    seed: int,
+    model_path: str | None = None,
+    skip_training: bool = False,
+) -> dict[str, Any]:
+    cfg = TrainingConfig(
+        max_pairs=max_pairs,
+        epochs=epochs,
+        pair_seed=seed,
+        show_progress=False,
+    )
+    pipeline = TrainingPipeline(config=cfg)
+    metrics: dict[str, Any] = {}
+
+    if skip_training:
+        if not model_path:
+            raise ValueError("skip_training=True requires a model_path to load.")
+        model_file = Path(model_path)
+        if not model_file.exists():
+            raise FileNotFoundError(f"GraphPy model not found at {model_file.resolve()}")
+        pipeline.model.load(model_file)
+        metrics["loaded_model"] = str(model_file)
+    else:
+        train_rows = splits.get("train", [])
+        measurements = to_measurements(train_rows)
+        if not measurements:
+            return {}
+        pair_count = pipeline.fit_measurements(measurements)
+        metrics["trained_pairs"] = pair_count
+
+    metrics.update(_evaluate_splits_with_pipeline(pipeline, splits))
     return metrics
 
 
@@ -229,7 +258,14 @@ def main() -> None:
 
     results: dict[str, Any] = {"config": vars(args)}
     if args.model in {"graph", "both"}:
-        results["graph"] = evaluate_graphpy(splits, max_pairs=args.max_pairs, epochs=args.epochs, seed=args.seed)
+        results["graph"] = evaluate_graphpy(
+            splits,
+            max_pairs=args.max_pairs,
+            epochs=args.epochs,
+            seed=args.seed,
+            model_path=args.graph_model_path,
+            skip_training=args.use_pretrained_graph,
+        )
     if args.model in {"xgb", "both"}:
         results["xgb"] = evaluate_xgb(splits, seed=args.seed)
 

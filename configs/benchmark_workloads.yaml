@@ -171,7 +171,7 @@ offline:
   shuffle_seed: 0
 
 online:
-  seeds: [0, 1, 2]
+  seeds: [0, 1]
   max_trials: 256
   trials_per_iter: 64
   number: 3

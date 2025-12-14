@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -71,7 +72,7 @@ def main() -> None:
                     )
                     log_path.parent.mkdir(parents=True, exist_ok=True)
                     cmd = [
-                        "python",
+                        sys.executable,
                         "scripts/run_metaschedule_tuning.py",
                         "--operator",
                         workload["operator"],
