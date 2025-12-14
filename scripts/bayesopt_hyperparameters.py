@@ -63,7 +63,7 @@ def train_and_evaluate(
     pipeline.model.hidden_dim = int(hidden_dim)
     
     try:
-        # Train
+        # Train with cached graphs
         pipeline.fit_measurements(measurements, cached_graphs=cached_graphs)
         
         # Get final validation accuracy from model
