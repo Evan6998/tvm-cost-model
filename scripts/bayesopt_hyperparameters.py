@@ -10,11 +10,10 @@ import pickle
 import random
 from pathlib import Path
 
+import json
 import numpy as np
 import torch
 from bayes_opt import BayesianOptimization
-from bayes_opt.logger import JSONLogger
-from bayes_opt.event import Events
 
 from tvm_cost_model.data.dataset_builder import load_measurement_records
 from tvm_cost_model.training.pipeline import TrainingConfig, TrainingPipeline
@@ -219,11 +218,8 @@ def main():
         pbounds=pbounds,
         random_state=args.seed,
         verbose=2,
+        allow_duplicate_points=True,  # Allow retries on same params
     )
-    
-    # Set up logging
-    logger = JSONLogger(path=args.output)
-    optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
     
     print("="*80)
     print("Starting Bayesian Optimization...")
@@ -249,6 +245,26 @@ def main():
             print(f"  {param}: {value:.6f}")
     print(f"\nBest validation accuracy: {optimizer.max['target']:.4f}")
     print()
+    
+    # Save all results to JSON manually
+    results = {
+        'best': {
+            'target': optimizer.max['target'],
+            'params': optimizer.max['params']
+        },
+        'all_iterations': []
+    }
+    
+    for i, res in enumerate(optimizer.res):
+        results['all_iterations'].append({
+            'iteration': i,
+            'target': res['target'],
+            'params': res['params']
+        })
+    
+    with open(args.output, 'w') as f:
+        json.dump(results, f, indent=2)
+    
     print(f"Results saved to: {args.output}")
     print()
     
