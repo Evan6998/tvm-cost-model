@@ -55,7 +55,7 @@ def train_and_evaluate(
         weight_decay=weight_decay,
         pair_seed=seed,
         curriculum=False,  # Shuffled learning works better
-        show_progress=False,  # Reduce noise
+        show_progress=True,  # Show epoch progress for debugging
     )
     
     # Create pipeline with hidden_dim
