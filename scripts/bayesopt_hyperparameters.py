@@ -110,8 +110,6 @@ def train_and_evaluate(
                     better=better_enc,
                     worse=worse_enc,
                     difficulty=pair.difficulty.name,
-                    better_runtime=pair.better.runtime_ms,
-                    worse_runtime=pair.worse.runtime_ms,
                 ))
         
         # Evaluate
