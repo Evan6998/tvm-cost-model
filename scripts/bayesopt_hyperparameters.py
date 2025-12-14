@@ -201,13 +201,13 @@ def main():
             seed=args.seed,
         )
     
-    # Define hyperparameter bounds
+    # Define hyperparameter bounds (based on previous successful runs)
     pbounds = {
-        'learning_rate': (1e-4, 5e-3),     # 0.0001 to 0.005
-        'margin': (0.01, 0.5),              # 0.01 to 0.5
-        'batch_size': (64, 512),            # 64 to 512 (will be rounded to int)
+        'learning_rate': (5e-4, 5e-3),     # 0.0005 to 0.005
+        'margin': (0.1, 1.5),               # 0.1 to 1.5 (includes previous value of 1.0)
+        'batch_size': (128, 512),           # 128 to 512 (will be rounded to int)
         'hidden_dim': (32, 128),            # 32 to 128 (will be rounded to int)
-        'weight_decay': (1e-6, 1e-3),      # 0.000001 to 0.001
+        'weight_decay': (1e-5, 1e-3),      # 0.00001 to 0.001
     }
     
     # Initialize Bayesian Optimization
