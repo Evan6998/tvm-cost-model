@@ -36,8 +36,8 @@ mkdir -p artifacts/bayesopt
 python -u scripts/bayesopt_hyperparameters.py \
     --dataset artifacts/sweeps/sweep_merged.parquet \
     --graph-cache artifacts/sweeps/sweep_merged_graphs.pkl \
-    --subset-size 1000 \
-    --max-pairs 1000 \
+    --subset-size 2000 \
+    --max-pairs 2000 \
     --epochs 5 \
     --n-iter 2 \
     --output artifacts/bayesopt/debug_results.json \
