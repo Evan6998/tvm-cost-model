@@ -24,6 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pair-seed", type=int, default=0, help="Seed for pair sampling")
     parser.add_argument("--output", type=str, default="", help="Path to save the trained model (torch format)")
     parser.add_argument("--graph-cache", type=str, default=None, help="Path to pre-computed graph cache (speeds up training)")
+    parser.add_argument("--no-curriculum", action="store_true", help="Disable curriculum learning (use shuffled training)")
     return parser
 
 
@@ -39,6 +40,8 @@ def main() -> None:
         margin=args.margin,
         weight_decay=args.weight_decay,
         pair_seed=args.pair_seed,
+        curriculum=not args.no_curriculum,  # Disable curriculum if flag set
+        show_progress=True,
     )
     pipeline = TrainingPipeline(config=config)
 

@@ -23,21 +23,31 @@ def main():
 
     builder = TVMGraphBuilder()
     graphs = []
+    failed_indices = []
     
     print("Building graphs...")
     with tqdm(total=len(measurements), desc="Building graphs", unit="graph") as pbar:
-        for m in measurements:
+        for idx, m in enumerate(measurements):
             try:
-                graph = builder.build_from_tir(m.scheduled_tir or m.original_tir)
+                graph = builder.build(m.scheduled_tir or m.original_tir)
                 graphs.append(graph)
             except Exception as e:
-                print(f"\nWarning: Failed to build graph: {e}")
+                print(f"\nWarning: Failed to build graph for measurement {idx}: {e}")
                 graphs.append(None)
+                failed_indices.append(idx)
             pbar.update(1)
+    
+    # Filter out None graphs
+    valid_graphs = [g for g in graphs if g is not None]
+    print(f"\nSuccessfully built {len(valid_graphs)}/{len(measurements)} graphs")
+    if failed_indices:
+        print(f"Failed to build {len(failed_indices)} graphs at indices: {failed_indices[:10]}{'...' if len(failed_indices) > 10 else ''}")
     
     # Save graphs with their corresponding measurement indices
     cache_data = {
-        'graphs': graphs,
+        'graphs': graphs,  # Keep None values to maintain alignment with measurements
+        'valid_count': len(valid_graphs),
+        'failed_indices': failed_indices,
         'measurement_count': len(measurements),
     }
     
