@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=08:00:00
+#SBATCH --time=03:00:00
 #SBATCH --output=logs/final_train_%j.out
 #SBATCH --error=logs/final_train_%j.err
 
@@ -12,9 +12,9 @@
 # Final Training with Optimized Hyperparameters
 # ============================================================================
 # Uses best hyperparameters from Bayesian optimization
-# Full dataset: 30,000 pairs, 200 epochs
+# Full dataset: 30,000 pairs, 50 epochs
 # Shuffled learning (no curriculum)
-# Expected time: ~4-6 hours
+# Expected time: ~1-1.5 hours
 # ============================================================================
 
 set -e
@@ -117,7 +117,7 @@ echo ""
 echo "========================================================================"
 echo "Starting final training with:"
 echo "  ✓ Full dataset: 30,000 pairs"
-echo "  ✓ 200 epochs"
+echo "  ✓ 50 epochs (faster iteration)"
 echo "  ✓ Shuffled learning (no curriculum)"
 echo "  ✓ Optimized hyperparameters from BayesOpt"
 echo "========================================================================"
@@ -125,7 +125,7 @@ echo ""
 
 python -u scripts/train_cost_model.py \
     --dataset artifacts/sweeps/sweep_merged.parquet \
-    --epochs 200 \
+    --epochs 50 \
     --max-pairs 30000 \
     --batch-size "$BATCH_SIZE" \
     --learning-rate "$LEARNING_RATE" \
