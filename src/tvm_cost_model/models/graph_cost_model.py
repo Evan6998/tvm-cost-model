@@ -163,9 +163,9 @@ class GraphCostModel:
                     )
                 else:
                     # Fallback to pairwise loss for small batches
-                batch_losses: list[torch.Tensor] = []
-                for pair in batch:
-                    better_score, worse_score = self._model.score_pair(pair.better, pair.worse)
+                    batch_losses: list[torch.Tensor] = []
+                    for pair in batch:
+                        better_score, worse_score = self._model.score_pair(pair.better, pair.worse)
                         
                         # Apply hard pair reweighting
                         weight = 1.0
@@ -183,16 +183,16 @@ class GraphCostModel:
                                 pair.better_runtime, pair.worse_runtime
                             )
                         else:
-                    target = torch.ones_like(better_score)
+                            target = torch.ones_like(better_score)
                             pair_loss = self._margin_loss(
-                            better_score.unsqueeze(0),
-                            worse_score.unsqueeze(0),
-                            target.unsqueeze(0),
-                        )
+                                better_score.unsqueeze(0),
+                                worse_score.unsqueeze(0),
+                                target.unsqueeze(0),
+                            )
                         
                         batch_losses.append(pair_loss * weight)
-                    train_correct += int((better_score > worse_score).item())
-                    train_count += 1
+                        train_correct += int((better_score > worse_score).item())
+                        train_count += 1
                     
                 loss = torch.stack(batch_losses).mean()
                 
